@@ -88,7 +88,7 @@ char argtext[]={
 "	Only display the first num match sets, for any given number of teams.\n"
 "-d num, --debug num\n"
 "	Sets the debug level to num.\n\n"
-"Note that the algorithm used is of order O(teams^4) (!!!) when generating a\n"
+"Note that the algorithm used is of order O(teams^6) (!!!) when generating a\n"
 "full fixture list, as this program is intended to be used with a small (<40)\n"
 "number of teams. Consider using -l/--limit for larger numbers of teams.\n"
 
@@ -235,7 +235,7 @@ int gensimmatches(int simt, unsigned int firstcostcandidate, vector<costst> &cos
 	return tcost;
 }
 
-void genfixtureset(int mint, int maxt, int simt) {
+void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for each number of games
 	mint=max(mint,simt*2);				//check that we've got sensible inputs
 	if(maxt<mint) return;
 
@@ -255,13 +255,12 @@ void genfixtureset(int mint, int maxt, int simt) {
 		for(unsigned int c=0; c<maxgames; c++) {
 			vector<costst> costs(n*(n-1)/2);
 
-			//calculate game costs, this is O(n^4) !!!
 			unsigned int costnum=0;
 			for(unsigned int i=0; i<n; i++) {
-				for(unsigned int j=i+1; j<n; j++) {
+				for(unsigned int j=i+1; j<n; j++) {			//number of costs to calculate for each game is order O(n^2) per game
 					costs[costnum].team1=i;
 					costs[costnum].team2=j;
-					costs[costnum].cost=getcost(i,j, prevgames);
+					costs[costnum].cost=getcost(i,j, prevgames);	//each cost is of same order to calculate as number of (previous) games, which is O(n^2)
 					if(random) costs[costnum].randval=rand();
 					if(debug>=3) printf("%d, %d, %d\n", i+1, j+1, costs[costnum].cost);
 					costnum++;
