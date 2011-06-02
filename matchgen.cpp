@@ -188,6 +188,39 @@ unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &pr
 	return tcost;
 }
 
+int gensimmatches(int simt, unsigned int firstcostcandidate, vector<costst> &costs, vector<fixture> &currentgames) {
+	int t=simt;
+	unsigned int nextcandidatefx=firstcostcandidate;
+	unsigned int tcost=0;
+	unsigned int missedcost=0;
+	do {
+		fixture f1={costs[nextcandidatefx].team1, costs[nextcandidatefx].team2};
+		unsigned int curfixturecost=costs[nextcandidatefx].cost;
+		nextcandidatefx++;
+
+		//check it
+		bool ok=true;
+		vector<fixture>::iterator fx;
+		for(fx=currentgames.begin() ; fx != currentgames.end(); fx++ ) {
+			if(f1.team1==fx->team1) { ok=false;  break; }
+			if(f1.team1==fx->team2) { ok=false;  break; }
+			if(f1.team2==fx->team1) { ok=false;  break; }
+			if(f1.team2==fx->team2) { ok=false;  break; }
+		}
+		if(!ok) {
+			missedcost+=curfixturecost;
+			continue;
+		}
+
+		//found one
+		currentgames.push_back(f1);
+		tcost+=curfixturecost;
+		t--;
+	} while(t);
+
+	return tcost;
+}
+
 void genfixtureset(int mint, int maxt, int simt) {
 	mint=max(mint,simt*2);				//check that we've got sensible inputs
 	if(maxt<mint) return;
@@ -223,27 +256,7 @@ void genfixtureset(int mint, int maxt, int simt) {
 			vector<fixture> currentgames;
 
 			//now calculate actual games
-			int t=simt;
-			int nextcandidatefx=0;
-			do {
-				fixture f1={costs[nextcandidatefx].team1, costs[nextcandidatefx].team2};
-				nextcandidatefx++;
-
-				//check it
-				bool ok=true;
-				vector<fixture>::iterator fx;
-				for(fx=currentgames.begin() ; fx != currentgames.end(); fx++ ) {
-					if(f1.team1==fx->team1) { ok=false;  break; }
-					if(f1.team1==fx->team2) { ok=false;  break; }
-					if(f1.team2==fx->team1) { ok=false;  break; }
-					if(f1.team2==fx->team2) { ok=false;  break; }
-				}
-				if(!ok) continue;
-
-				//found one
-				currentgames.push_back(f1);
-				t--;
-			} while(t);
+			gensimmatches(simt, 0, costs, currentgames);
 
 			sort(currentgames.begin(), currentgames.end(), fixturesortfunc);
 
