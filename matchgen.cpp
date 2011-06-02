@@ -290,6 +290,33 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 		}
 
 		printf("\n");
+
+		if(debug>0) {		//print matrix, it's symmetric, and should have 0 on the diagonals
+			vector<unsigned int> matchmatrix(n*n,0);
+			list< vector<fixture> >::iterator it;
+			unsigned int total=0;
+			for( it=prevgames.begin() ; it != prevgames.end(); it++ ) {
+				vector<fixture>::iterator fx;
+				for(fx=it->begin() ; fx != it->end(); fx++ ) {
+					(matchmatrix[fx->team2+(fx->team1*n)])++;
+					(matchmatrix[fx->team1+(fx->team2*n)])++;
+					total++;
+				}
+			}
+			printf("    ");
+			for(unsigned int i=0; i<n; i++) printf("%2d ", i+1);
+			printf("= %3d\n", total);
+			for(unsigned int i=0; i<n; i++) {
+				printf("%2d: ", i+1);
+				unsigned int rowtotal=0;
+				for(unsigned int j=0; j<n; j++) {
+					printf("%2d ", matchmatrix[j+(n*i)]);
+					rowtotal+=matchmatrix[j+(n*i)];
+				}
+				printf("= %3d\n", rowtotal);
+			}
+			printf("\n");
+		}
 	}
 }
 
