@@ -31,12 +31,14 @@
 #include "SimpleOpt.h"
 using namespace std;
 
-enum { OPT_MAXTEAMS, OPT_MINTEAMS, OPT_SIMU, OPT_RANDOM, OPT_HELP, OPT_DUPRS, OPT_CREDITS, OPT_DEBUG, OPT_LIMIT };
+enum { OPT_MAXTEAMS, OPT_MINTEAMS, OPT_SIMU, OPT_RANDOM, OPT_HELP, OPT_DUPRS, OPT_CREDITS, OPT_DEBUG, OPT_LIMIT,
+OPT_BRUTEON, OPT_BRUTEOFF };
 
 int maxteams=20;
 int minteams=4;
 int simu=2;
 bool random=false;
+int brute=0;
 int repthreshold=0;
 int debug=0;
 int limit=INT_MAX;
@@ -61,6 +63,10 @@ CSimpleOptA::SOption g_rgOptions[] =
 	{ OPT_DEBUG,		"--debug",		SO_REQ_SHRT  },
 	{ OPT_LIMIT,		"-l",			SO_REQ_SHRT  },
 	{ OPT_LIMIT,		"--limit",		SO_REQ_SHRT  },
+	{ OPT_BRUTEON,		"--brute-force-game-set",SO_NONE  },
+	{ OPT_BRUTEOFF,		"--dont-brute-force-game-set",SO_NONE  },
+	{ OPT_BRUTEON,		"-b",			SO_NONE  },
+	{ OPT_BRUTEOFF,		"-f",			SO_NONE  },
 	SO_END_OF_OPTIONS
 };
 
@@ -74,11 +80,11 @@ char argtext[]={
 "-?, -h, --help\n"
 "	Display this help\n"
 "-m num, --max-teams num\n"
-"	Sets the maximum number of teams to num. Default 20.\n"
+"	Sets the maximum number of teams (n) to num. Default 20.\n"
 "-n num, --min-teams num\n"
-"	Sets the minimum number of teams to num. Default 4.\n"
+"	Sets the minimum number of teams (n) to num. Default 4.\n"
 "-s num, --simultaneous-matches num\n"
-"	Sets the number of simultaneous matches to num. Default 2.\n"
+"	Sets the number of simultaneous matches (s) to num. Default 2.\n"
 "-r, --random\n"
 "	Produce a randomised fixture list.\n"
 "-t num, --repeat-lower-simu-threshold num\n"
@@ -87,11 +93,21 @@ char argtext[]={
 "-l num, --limit num\n"
 "	Only display the first num match sets, for any given number of teams.\n"
 "-d num, --debug num\n"
-"	Sets the debug level to num.\n\n"
-"Note that the algorithm used is of order O(teams^6) (!!!) when generating a\n"
+"	Sets the debug level to num.\n"
+"-b, --brute-force-game-set\n"
+"	Brute-forces generating a set of simultaneous matches from game costs.\n"
+"-f, --dont-brute-force-game-set\n"
+"	Never use the above brute-forcing method.\n"
+"\n"
+"Note that the algorithm used is of order O(n^6) (!!!) when generating a\n"
 "full fixture list, as this program is intended to be used with a small (<40)\n"
-"number of teams. Consider using -l/--limit for larger numbers of teams.\n"
-
+"number of teams (n). Consider using -l/--limit for larger numbers of teams.\n"
+"\n"
+"The brute-forcing method is intended to solve issues of poor results when the\n"
+"number of teams (n) approaches twice the number of simultaneous matches (s),\n"
+"for large values of s. It is normally applied when 2s<=n<2s+2. It is *very*\n"
+"slow for large n and/or large s.\n"
+"The computation order for this step is approximately: O(n^2s).\n\n"
 };
 
 void cmdline(char *argv[], int argc) {
@@ -129,6 +145,12 @@ void cmdline(char *argv[], int argc) {
 				break;
 			case OPT_RANDOM:
 				random=true;
+				break;
+			case OPT_BRUTEON:
+				brute=1;
+				break;
+			case OPT_BRUTEOFF:
+				brute=-1;
 				break;
 			case OPT_DUPRS:
 				repthreshold=atoi(args.OptionArg());
@@ -299,7 +321,7 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 
 			sort(costs.begin(), costs.end(), costsortfunc);
 
-			if(n>=(simt*4)) {	//normal mode, pick first games that fit, greedy
+			if((n>=((2*simt)+2) && brute==0) || brute<0) {	//normal mode, pick first games that fit, greedy
 
 				//now calculate actual games
 				unsigned int missedcost;
