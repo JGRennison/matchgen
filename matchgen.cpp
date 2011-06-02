@@ -107,7 +107,7 @@ char argtext[]={
 "number of teams (n) approaches twice the number of simultaneous matches (s),\n"
 "for large values of s. It is normally applied when 2s<=n<2s+2. It is *very*\n"
 "slow for large n and/or large s.\n"
-"The computation order for this step is approximately: O(n^2s).\n\n"
+"The computation order for is approximately: O(n^2s) per match set.\n\n"
 };
 
 void cmdline(char *argv[], int argc) {
@@ -260,7 +260,9 @@ int gensimmatches(int simt, unsigned int firstcostcandidate, vector<costst> &cos
 unsigned int gensimmatchesbrute(vector<fixture> currentfixture, vector<costst> &costs, unsigned int costtotry, unsigned int gamesleft, vector<bool> haveteams, unsigned int runningcost, unsigned int &bestcost, vector<fixture> &bestfixture) {
 	unsigned int cost1=UINT_MAX;
 	unsigned int cost2=UINT_MAX;
-	if(costs[costtotry].cost+runningcost < bestcost) {
+	unsigned int lpfc=runningcost;	//lowest possible future cost
+	for(int i=0; i<gamesleft; i++) lpfc+=costs[costtotry+i].cost;
+	if(lpfc < bestcost) {
 		if(!haveteams[costs[costtotry].team1] && !haveteams[costs[costtotry].team2]) {
 			vector<fixture> newfixture = currentfixture;
 			vector<bool> newhaveteams = haveteams;
