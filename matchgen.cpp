@@ -31,7 +31,7 @@
 #include "SimpleOpt.h"
 using namespace std;
 
-enum { OPT_MAXTEAMS, OPT_MINTEAMS, OPT_SIMU, OPT_RANDOM, OPT_HELP, OPT_DUPRS, OPT_CREDITS, OPT_DEBUG };
+enum { OPT_MAXTEAMS, OPT_MINTEAMS, OPT_SIMU, OPT_RANDOM, OPT_HELP, OPT_DUPRS, OPT_CREDITS, OPT_DEBUG, OPT_LIMIT };
 
 int maxteams=20;
 int minteams=4;
@@ -39,6 +39,7 @@ int simu=2;
 bool random=false;
 int repthreshold=0;
 int debug=0;
+int limit=INT_MAX;
 
 
 CSimpleOptA::SOption g_rgOptions[] =
@@ -58,6 +59,8 @@ CSimpleOptA::SOption g_rgOptions[] =
 	{ OPT_DUPRS,		"--repeat-lower-simu-threshold",		SO_REQ_SHRT  },
 	{ OPT_DEBUG,		"-d",			SO_REQ_SHRT  },
 	{ OPT_DEBUG,		"--debug",		SO_REQ_SHRT  },
+	{ OPT_LIMIT,		"-l",			SO_REQ_SHRT  },
+	{ OPT_LIMIT,		"--limit",		SO_REQ_SHRT  },
 	SO_END_OF_OPTIONS
 };
 
@@ -66,7 +69,7 @@ char argtext[]={
 "Author: Jonathan G. Rennison\n"
 "License: GPLv2\n"
 "Credits: SimpleOpt command-line processing library v3.4 by Brodie Thiesfield,\n"
-"	(modified slightly)\n"
+"	(modified slightly)\n\n"
 "Command line switches:\n"
 "-?, -h, --help\n"
 "	Display this help\n"
@@ -81,8 +84,13 @@ char argtext[]={
 "-t num, --repeat-lower-simu-threshold num\n"
 "	Repeat the fixture list generation from the minimum number of teams to\n"
 "	this threshold, with the number of simultaneous matches reduced by one.\n"
+"-l num, --limit num\n"
+"	Only display the first num match sets, for any given number of teams.\n"
 "-d num, --debug num\n"
-"	Sets the debug level to num.\n"
+"	Sets the debug level to num.\n\n"
+"Note that the algorithm used is of order O(teams^4) (!!!) when generating a\n"
+"full fixture list, as this program is intended to be used with a small (<40)\n"
+"number of teams. Consider using -l/--limit for larger numbers of teams.\n"
 
 };
 
@@ -126,6 +134,12 @@ void cmdline(char *argv[], int argc) {
 				repthreshold=atoi(args.OptionArg());
 				if(repthreshold<2 || repthreshold>98) {
 					printf("Team threshold for repetition with simultaneous game reduction must be between 2 and 98. You supplied: %s\n", args.OptionArg());
+				}
+				break;
+			case OPT_LIMIT:
+				limit=atoi(args.OptionArg());
+				if(limit<1) {
+					printf("Match set limit be 1 or greater. You supplied: %s\n", args.OptionArg());
 				}
 				break;
 			case -1:
@@ -226,11 +240,13 @@ void genfixtureset(int mint, int maxt, int simt) {
 	if(maxt<mint) return;
 
 	for(int n=mint; n<=maxt; n++) {
-		int games=n*(n-1)/2;
+		int games=n*(n-1)/2;			//number of games is O(n^2)
 		int maxgames=games;
 
 		while(maxgames%simt) maxgames+=games;	//make sure that we end on a integral boundary of game rounds
 		maxgames/=simt;
+
+		maxgames=min(maxgames, limit);
 
 		list< vector<fixture> > prevgames;
 
@@ -239,7 +255,7 @@ void genfixtureset(int mint, int maxt, int simt) {
 		for(unsigned int c=0; c<maxgames; c++) {
 			vector<costst> costs(n*(n-1)/2);
 
-			//calculate game costs
+			//calculate game costs, this is O(n^4) !!!
 			unsigned int costnum=0;
 			for(unsigned int i=0; i<n; i++) {
 				for(unsigned int j=i+1; j<n; j++) {
@@ -247,7 +263,7 @@ void genfixtureset(int mint, int maxt, int simt) {
 					costs[costnum].team2=j;
 					costs[costnum].cost=getcost(i,j, prevgames);
 					if(random) costs[costnum].randval=rand();
-					if(debug>0) printf("%d, %d, %d\n", i+1, j+1, costs[costnum].cost);
+					if(debug>=3) printf("%d, %d, %d\n", i+1, j+1, costs[costnum].cost);
 					costnum++;
 				}
 			}
@@ -256,16 +272,21 @@ void genfixtureset(int mint, int maxt, int simt) {
 			vector<fixture> currentgames;
 
 			//now calculate actual games
-			gensimmatches(simt, 0, costs, currentgames);
+			unsigned int tcost=gensimmatches(simt, 0, costs, currentgames);
+			if(debug>=2) printf("Sim Match Total: %d\n", tcost);
 
 			sort(currentgames.begin(), currentgames.end(), fixturesortfunc);
 
 			prevgames.push_back(currentgames);
 
-			vector<fixture>::iterator fx;
-			for(fx=currentgames.begin() ; fx != currentgames.end(); fx++ ) {
-				printf("%2d v %2d\t", fx->team1+1, fx->team2+1);
-			}
+			vector<fixture>::iterator fx=currentgames.begin();
+			do {
+				printf("%2d v %2d", fx->team1+1, fx->team2+1);
+				fx++;
+				if(fx == currentgames.end()) break;
+				printf("\t");				//don't add a tab to the last entry
+
+			} while(true);
 			printf("\n");
 		}
 
