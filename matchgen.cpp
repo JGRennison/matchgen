@@ -202,11 +202,11 @@ unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &pr
 	return tcost;
 }
 
-int gensimmatches(int simt, unsigned int firstcostcandidate, vector<costst> &costs, vector<fixture> &currentgames) {
+int gensimmatches(int simt, unsigned int firstcostcandidate, vector<costst> &costs, vector<fixture> &currentgames, unsigned int &missedcost) {
 	int t=simt;
 	unsigned int nextcandidatefx=firstcostcandidate;
 	unsigned int tcost=0;
-	unsigned int missedcost=0;
+	missedcost=0;
 	do {
 		fixture f1={costs[nextcandidatefx].team1, costs[nextcandidatefx].team2};
 		unsigned int curfixturecost=costs[nextcandidatefx].cost;
@@ -233,6 +233,34 @@ int gensimmatches(int simt, unsigned int firstcostcandidate, vector<costst> &cos
 	} while(t);
 
 	return tcost;
+}
+
+unsigned int gensimmatchesbrute(vector<fixture> currentfixture, vector<costst> &costs, unsigned int costtotry, unsigned int gamesleft, vector<bool> haveteams, unsigned int runningcost, unsigned int &bestcost, vector<fixture> &bestfixture) {
+	unsigned int cost1=UINT_MAX;
+	unsigned int cost2=UINT_MAX;
+	if(costs[costtotry].cost+runningcost < bestcost) {
+		if(!haveteams[costs[costtotry].team1] && !haveteams[costs[costtotry].team2]) {
+			vector<fixture> newfixture = currentfixture;
+			vector<bool> newhaveteams = haveteams;
+			fixture f1={costs[costtotry].team1, costs[costtotry].team2};
+			newfixture.push_back(f1);
+			newhaveteams[costs[costtotry].team1]=true;
+			newhaveteams[costs[costtotry].team2]=true;
+			if(gamesleft>1) {
+				cost1=gensimmatchesbrute(newfixture, costs, costtotry+1, gamesleft-1, newhaveteams, runningcost+costs[costtotry].cost, bestcost, bestfixture);
+			}
+			else {
+				cost1=runningcost+costs[costtotry].cost;
+				bestcost=cost1;
+				bestfixture=newfixture;
+				return cost1;
+			}
+		}
+		if(costtotry+gamesleft<costs.size()) {
+			cost2=gensimmatchesbrute(currentfixture, costs, costtotry+1, gamesleft, haveteams, runningcost, bestcost, bestfixture);
+		}
+	}
+	return min(cost1,cost2);
 }
 
 void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for each number of games
@@ -266,13 +294,25 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 					costnum++;
 				}
 			}
-			sort(costs.begin(), costs.end(), costsortfunc);
 
 			vector<fixture> currentgames;
 
-			//now calculate actual games
-			unsigned int tcost=gensimmatches(simt, 0, costs, currentgames);
-			if(debug>=2) printf("Sim Match Total: %d\n", tcost);
+			sort(costs.begin(), costs.end(), costsortfunc);
+
+			if(n>=(simt*4)) {	//normal mode, pick first games that fit, greedy
+
+				//now calculate actual games
+				unsigned int missedcost;
+				unsigned int tcost=gensimmatches(simt, 0, costs, currentgames, missedcost);
+				if(debug>=2) printf("Sim Match Total: %d, missed: %d\n", tcost, missedcost);
+
+			}
+			else {			//not many games to choose from, do it more thoroughly/brute force it
+				vector<bool> haveteams(n,0);
+				unsigned int bestcost=UINT_MAX;
+				vector<fixture> currentfixture;
+				unsigned int gotcost=gensimmatchesbrute(currentfixture, costs, 0, simt, haveteams, 0, bestcost, currentgames);
+			}
 
 			sort(currentgames.begin(), currentgames.end(), fixturesortfunc);
 
