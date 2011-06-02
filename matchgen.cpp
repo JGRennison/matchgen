@@ -22,6 +22,8 @@
 //==========================================================================
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 #include <vector>
 #include <list>
 #include <algorithm>
@@ -56,6 +58,7 @@ CSimpleOptA::SOption g_rgOptions[] =
 	{ OPT_DUPRS,		"--repeat-lower-simu-threshold",		SO_REQ_SHRT  },
 	{ OPT_DEBUG,		"-d",			SO_REQ_SHRT  },
 	{ OPT_DEBUG,		"--debug",		SO_REQ_SHRT  },
+	SO_END_OF_OPTIONS
 };
 
 char argtext[]={
@@ -84,11 +87,12 @@ char argtext[]={
 };
 
 void cmdline(char *argv[], int argc) {
-	CSimpleOptA args(argc, argv, g_rgOptions, SO_O_NOSLASH|SO_O_USEALL|SO_O_CLUMP|SO_O_EXACT|SO_O_SHORTARG|SO_O_FILEARG|SO_O_CLUMP_ARGD);
+	CSimpleOptA args(argc, argv, g_rgOptions, SO_O_NOSLASH|SO_O_CLUMP|SO_O_EXACT|SO_O_SHORTARG|SO_O_FILEARG|SO_O_CLUMP_ARGD);
 	while (args.Next()) {
 		if (args.LastError() != SO_SUCCESS) {
 			printf("Argument Error: %s, Option Text: %s\nTry --help\n", args.LastError(), args.OptionText());
-			exit(1);		}
+			exit(1);
+		}
 		switch(args.OptionId()) {
 			case OPT_HELP: {
 				printf("%s", argtext);
@@ -96,14 +100,14 @@ void cmdline(char *argv[], int argc) {
 			}
 			case OPT_MAXTEAMS:
 				maxteams=atoi(args.OptionArg());
-				if(maxteams<3 || maxteams>99) {
-					printf("Maximum teams must be between 3 and 99. You supplied: %s\n", args.OptionArg());
+				if(maxteams<2 || maxteams>99) {
+					printf("Maximum teams must be between 2 and 99. You supplied: %s\n", args.OptionArg());
 				}
 				break;
 			case OPT_MINTEAMS:
 				minteams=atoi(args.OptionArg());
-				if(minteams<3 || minteams>99) {
-					printf("Minimum teams must be between 3 and 99. You supplied: %s\n", args.OptionArg());
+				if(minteams<2 || minteams>99) {
+					printf("Minimum teams must be between 2 and 99. You supplied: %s\n", args.OptionArg());
 				}
 				break;
 			case OPT_SIMU:
@@ -116,17 +120,16 @@ void cmdline(char *argv[], int argc) {
 				debug=atoi(args.OptionArg());
 				break;
 			case OPT_RANDOM:
-				printf("%s", "Not implemented yet\n");
 				random=true;
 				break;
 			case OPT_DUPRS:
 				repthreshold=atoi(args.OptionArg());
-				if(repthreshold<3 || repthreshold>9000) {
-					printf("Game threshold for repetition with simultaneous game reduction must be between 3 and 900. You supplied: %s\n", args.OptionArg());
+				if(repthreshold<2 || repthreshold>98) {
+					printf("Team threshold for repetition with simultaneous game reduction must be between 2 and 98. You supplied: %s\n", args.OptionArg());
 				}
 				break;
 			case -1:
-				printf("Not an argument: %s, try --help", args.OptionArg());
+				printf("Not an argument: %s, try --help\n", args.OptionArg());
 				exit(1);
 				break;
 		}
@@ -138,6 +141,7 @@ struct costst {
 	unsigned int team1;
 	unsigned int team2;
 	unsigned int cost;
+	int randval;
 };
 
 struct fixture {
@@ -149,7 +153,15 @@ struct fixture {
 inline bool costsortfunc(costst s1, costst s2) {
 	if(s1.cost<s2.cost) return true;
 	else if(s1.cost>s2.cost) return false;
+	else if(random) return (s1.randval<s2.randval);
 	else if(s1.team1<s2.team1) return true;
+	else if(s1.team1>s2.team1) return false;
+	else if(s1.team2<s2.team2) return true;
+	else return false;
+}
+
+inline bool fixturesortfunc(fixture s1, fixture s2) {
+	if(s1.team1<s2.team1) return true;
 	else if(s1.team1>s2.team1) return false;
 	else if(s1.team2<s2.team2) return true;
 	else return false;
@@ -157,27 +169,35 @@ inline bool costsortfunc(costst s1, costst s2) {
 
 unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &prevgames) {
 	if(i==j) return INT_MAX;
-	unsigned int cost=0;
+	unsigned int tcost=0;
 	list< vector<fixture> >::reverse_iterator rit;
+	unsigned int costmul=prevgames.size();
 	for( rit=prevgames.rbegin() ; rit != prevgames.rend(); rit++ ) {
-		cost<<=1;
+		unsigned int cost=0;
 		vector<fixture>::iterator fx;
 		for(fx=rit->begin() ; fx != rit->end(); fx++ ) {
-			if(fx->team1==i && fx->team2==j) cost+=4;
+			if(fx->team1==i && fx->team2==j) cost+=1000;
 			if(fx->team1==i) cost+=1;
 			if(fx->team2==j) cost+=1;
 			if(fx->team1==j) cost+=1;
 			if(fx->team2==i) cost+=1;
 		}
+		tcost+=cost*costmul;
+		costmul--;
 	}
-	return cost;
+	return tcost;
 }
 
-void genfixtureset(int mint, int maxt, int simt, bool randt) {
+void genfixtureset(int mint, int maxt, int simt) {
+	mint=max(mint,simt*2);				//check that we've got sensible inputs
+	if(maxt<mint) return;
+
 	for(int n=mint; n<=maxt; n++) {
 		int games=n*(n-1)/2;
 		int maxgames=games;
-		while(maxgames%simt) maxgames+=games;
+
+		while(maxgames%simt) maxgames+=games;	//make sure that we end on a integral boundary of game rounds
+		maxgames/=simt;
 
 		list< vector<fixture> > prevgames;
 
@@ -193,6 +213,7 @@ void genfixtureset(int mint, int maxt, int simt, bool randt) {
 					costs[costnum].team1=i;
 					costs[costnum].team2=j;
 					costs[costnum].cost=getcost(i,j, prevgames);
+					if(random) costs[costnum].randval=rand();
 					if(debug>0) printf("%d, %d, %d\n", i+1, j+1, costs[costnum].cost);
 					costnum++;
 				}
@@ -202,8 +223,29 @@ void genfixtureset(int mint, int maxt, int simt, bool randt) {
 			vector<fixture> currentgames;
 
 			//now calculate actual games
-			fixture f1={costs[0].team1, costs[0].team2};
-			currentgames.push_back(f1);
+			int t=simt;
+			int nextcandidatefx=0;
+			do {
+				fixture f1={costs[nextcandidatefx].team1, costs[nextcandidatefx].team2};
+				nextcandidatefx++;
+
+				//check it
+				bool ok=true;
+				vector<fixture>::iterator fx;
+				for(fx=currentgames.begin() ; fx != currentgames.end(); fx++ ) {
+					if(f1.team1==fx->team1) { ok=false;  break; }
+					if(f1.team1==fx->team2) { ok=false;  break; }
+					if(f1.team2==fx->team1) { ok=false;  break; }
+					if(f1.team2==fx->team2) { ok=false;  break; }
+				}
+				if(!ok) continue;
+
+				//found one
+				currentgames.push_back(f1);
+				t--;
+			} while(t);
+
+			sort(currentgames.begin(), currentgames.end(), fixturesortfunc);
 
 			prevgames.push_back(currentgames);
 
@@ -219,9 +261,12 @@ void genfixtureset(int mint, int maxt, int simt, bool randt) {
 }
 
 int main( int argc, char *argv[]) {
-	cmdline(argv+1, argc-1);
+	cmdline(argv, argc);
+	if(random) srand (time(NULL));
 
-	genfixtureset(minteams, maxteams, 1, random);
+	genfixtureset(minteams, maxteams, simu);
+
+	if(repthreshold) genfixtureset(minteams, repthreshold, simu-1);
 
 	return 0;
 }
