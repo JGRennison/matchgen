@@ -399,6 +399,56 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 			}
 			printf("\n");
 		}
+		if(debug>0) {		//print gap analysis, this ignores the start gap
+			vector<unsigned int> gapmatrix(n*prevgames.size(),0);
+			vector<unsigned int> lastplayed(n,0);
+			vector<unsigned int> totalgap(n,0);
+			vector<unsigned int> gapcount(n,0);
+			unsigned int currentgame=1;
+			unsigned int highestcount=0;
+			unsigned int lowestcount=UINT_MAX;
+			list< vector<fixture> >::iterator it;
+			for( it=prevgames.begin() ; it != prevgames.end(); it++ ) {
+				vector<fixture>::iterator fx;
+				for(fx=it->begin() ; fx != it->end(); fx++ ) {
+					if(lastplayed[fx->team1]) {
+						unsigned int gap=currentgame-lastplayed[fx->team1];
+						highestcount=max(highestcount,gap);
+						lowestcount=min(lowestcount,gap);
+						gapmatrix[(n*(gap-1))+fx->team1]++;
+						totalgap[fx->team1]+=gap;
+						gapcount[fx->team1]++;
+					}
+					if(lastplayed[fx->team2]) {
+						unsigned int gap=currentgame-lastplayed[fx->team2];
+						highestcount=max(highestcount,gap);
+						lowestcount=min(lowestcount,gap);
+						gapmatrix[(n*(gap-1))+fx->team2]++;
+						totalgap[fx->team2]+=gap;
+						gapcount[fx->team2]++;
+					}
+					lastplayed[fx->team1]=currentgame;
+					lastplayed[fx->team2]=currentgame;
+				}
+				currentgame++;
+			}
+			if(highestcount) {
+				printf("Gap Analysis (excluding start):\n    ");
+				for(unsigned int i=lowestcount; i<highestcount; i++) printf("%2d ", i+1);
+				printf("   T  C  A\n");
+				for(unsigned int i=0; i<n; i++) {
+					printf("%2d: ", i+1);
+					for(unsigned int j=lowestcount; j<highestcount; j++) {
+						printf("%2d ", gapmatrix[i+(n*j)]);
+					}
+					printf("%4d ", totalgap[i]);
+					printf("%2d ", gapcount[i]);
+					printf("%g ", ((double) totalgap[i])/((double) gapcount[i]));
+					printf("\n");
+				}
+				printf("\n");
+			}
+		}
 	}
 }
 
