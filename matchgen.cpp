@@ -28,6 +28,7 @@
 #include <list>
 #include <algorithm>
 #include <limits.h>
+#include <math.h>
 #include "SimpleOpt.h"
 using namespace std;
 
@@ -207,7 +208,7 @@ unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &pr
 	if(i==j) return INT_MAX;
 	unsigned int tcost=0;
 	list< vector<fixture> >::reverse_iterator rit;
-	unsigned int costmul=prevgames.size();
+	unsigned int iternum=0;
 	for( rit=prevgames.rbegin() ; rit != prevgames.rend(); rit++ ) {
 		unsigned int cost=0;
 		vector<fixture>::iterator fx;
@@ -218,8 +219,9 @@ unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &pr
 			if(fx->team1==j) cost+=1;
 			if(fx->team2==i) cost+=1;
 		}
-		tcost+=cost*costmul;
-		costmul--;
+		tcost+=(((double) cost)*(1.0+(5.0*exp((double) -1.0*iternum))));
+		if(debug>=4) printf("%d v %d, tcost: %d, iternum: %d, cost: %d\n", i+1, j+1, tcost, iternum, cost);
+		iternum++;
 	}
 	return tcost;
 }
