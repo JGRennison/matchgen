@@ -232,7 +232,7 @@ unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &pr
 			if(fx->team1==j) cost+=1;
 			if(fx->team2==i) cost+=1;
 		}
-		tcost+=(((double) cost)*(10.0+(100.0*exp(-sqrt(1.0*iternum)))));
+		tcost+=(((double) cost)*(10.0+(50.0*exp(-sqrt(1.0*iternum)))));
 		if(debug>=4) printf("%d v %d, tcost: %d, iternum: %d, cost: %d\n", i+1, j+1, tcost, iternum, cost);
 		iternum++;
 	}
