@@ -232,7 +232,7 @@ unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &pr
 			if(fx->team1==j) cost+=1;
 			if(fx->team2==i) cost+=1;
 		}
-		tcost+=(((double) cost)*(1.0+(5.0*exp((double) -1.0*iternum))));
+		tcost+=(((double) cost)*(10.0+(100.0*exp(-sqrt(1.0*iternum)))));
 		if(debug>=4) printf("%d v %d, tcost: %d, iternum: %d, cost: %d\n", i+1, j+1, tcost, iternum, cost);
 		iternum++;
 	}
@@ -434,16 +434,20 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 			}
 			if(highestcount) {
 				printf("Gap Analysis (excluding start):\n    ");
-				for(unsigned int i=lowestcount; i<highestcount; i++) printf("%2d ", i+1);
-				printf("   T  C  A\n");
+				for(unsigned int i=lowestcount-1; i<highestcount; i++) printf("%2d ", i+1);
+				printf("   T  C        A       SD\n");
 				for(unsigned int i=0; i<n; i++) {
 					printf("%2d: ", i+1);
-					for(unsigned int j=lowestcount; j<highestcount; j++) {
+					double avg=((double) totalgap[i])/((double) gapcount[i]);
+					double sdaccum=0;
+					for(unsigned int j=lowestcount-1; j<highestcount; j++) {
 						printf("%2d ", gapmatrix[i+(n*j)]);
+						sdaccum+=pow((((double) j+1)-avg),2)*gapmatrix[i+(n*j)];
 					}
 					printf("%4d ", totalgap[i]);
 					printf("%2d ", gapcount[i]);
-					printf("%g ", ((double) totalgap[i])/((double) gapcount[i]));
+					printf("% -8.5g ", avg);
+					printf("% -8.5g ", sqrt(sdaccum/gapcount[i]));
 					printf("\n");
 				}
 				printf("\n");
