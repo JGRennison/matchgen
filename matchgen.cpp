@@ -33,7 +33,7 @@
 using namespace std;
 
 enum { OPT_MAXTEAMS, OPT_MINTEAMS, OPT_SIMU, OPT_RANDOM, OPT_HELP, OPT_DUPRS, OPT_CREDITS, OPT_DEBUG, OPT_LIMIT,
-OPT_BRUTEON, OPT_BRUTEOFF };
+OPT_BRUTEON, OPT_BRUTEOFF, OPT_SETTEAMS };
 
 int maxteams=20;
 int minteams=4;
@@ -49,6 +49,8 @@ CSimpleOptA::SOption g_rgOptions[] =
 {
 	{ OPT_MAXTEAMS,		"-m",			SO_REQ_SHRT  },
 	{ OPT_MAXTEAMS,		"--max-teams",		SO_REQ_SHRT  },
+	{ OPT_SETTEAMS,		"-g",			SO_REQ_SHRT  },
+	{ OPT_SETTEAMS,		"--set-teams",		SO_REQ_SHRT  },
 	{ OPT_MINTEAMS,		"-n",			SO_REQ_SHRT  },
 	{ OPT_MINTEAMS,		"--min-teams",		SO_REQ_SHRT  },
 	{ OPT_SIMU,		"-s",			SO_REQ_SHRT  },
@@ -84,6 +86,8 @@ char argtext[]={
 "	Sets the maximum number of teams (n) to num. Default 20.\n"
 "-n num, --min-teams num\n"
 "	Sets the minimum number of teams (n) to num. Default 4.\n"
+"-g num, --teams num\n"
+"	Sets both the minimum and maximum number of teams (n) to num.\n"
 "-s num, --simultaneous-matches num\n"
 "	Sets the number of simultaneous matches (s) to num. Default 2.\n"
 "-r, --random\n"
@@ -95,6 +99,8 @@ char argtext[]={
 "	Only display the first num match sets, for any given number of teams.\n"
 "-d num, --debug num\n"
 "	Sets the debug level to num.\n"
+"	Debug level one displays some result statistics. Higher than that is\n"
+"	Likely only of interest to developers.\n"
 "-b, --brute-force-game-set\n"
 "	Brute-forces generating a set of simultaneous matches from game costs.\n"
 "-f, --dont-brute-force-game-set\n"
@@ -126,19 +132,26 @@ void cmdline(char *argv[], int argc) {
 			case OPT_MAXTEAMS:
 				maxteams=atoi(args.OptionArg());
 				if(maxteams<2 || maxteams>99) {
-					printf("Maximum teams must be between 2 and 99. You supplied: %s\n", args.OptionArg());
+					printf("Maximum teams should be between 2 and 99. You supplied: %s\n", args.OptionArg());
 				}
 				break;
 			case OPT_MINTEAMS:
 				minteams=atoi(args.OptionArg());
 				if(minteams<2 || minteams>99) {
-					printf("Minimum teams must be between 2 and 99. You supplied: %s\n", args.OptionArg());
+					printf("Minimum teams should be between 2 and 99. You supplied: %s\n", args.OptionArg());
+				}
+				break;
+			case OPT_SETTEAMS:
+				minteams=atoi(args.OptionArg());
+				maxteams=minteams;
+				if(minteams<2 || minteams>99) {
+					printf("Teams should be between 2 and 99. You supplied: %s\n", args.OptionArg());
 				}
 				break;
 			case OPT_SIMU:
 				simu=atoi(args.OptionArg());
 				if(simu<1 || simu>10) {
-					printf("Simultaneous games must be between 1 and 10. You supplied: %s\n", args.OptionArg());
+					printf("Simultaneous games should be between 1 and 10. You supplied: %s\n", args.OptionArg());
 				}
 				break;
 			case OPT_DEBUG:
@@ -292,6 +305,8 @@ unsigned int gensimmatchesbrute(vector<fixture> currentfixture, vector<costst> &
 void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for each number of games
 	mint=max(mint,simt*2);				//check that we've got sensible inputs
 	if(maxt<mint) return;
+	if(mint<2) return;
+	if(simt<=0) return;
 
 	for(int n=mint; n<=maxt; n++) {
 		int games=n*(n-1)/2;			//number of games is O(n^2)
@@ -338,6 +353,7 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 				unsigned int bestcost=UINT_MAX;
 				vector<fixture> currentfixture;
 				unsigned int gotcost=gensimmatchesbrute(currentfixture, costs, 0, simt, haveteams, 0, bestcost, currentgames);
+				if(debug>=2) printf("Sim Match Total: %d, (brute forced)\n", gotcost);
 			}
 
 			sort(currentgames.begin(), currentgames.end(), fixturesortfunc);
@@ -369,7 +385,7 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 					total++;
 				}
 			}
-			printf("    ");
+			printf("Match Matrix:\n    ");
 			for(unsigned int i=0; i<n; i++) printf("%2d ", i+1);
 			printf("= %3d\n", total);
 			for(unsigned int i=0; i<n; i++) {
