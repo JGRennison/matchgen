@@ -43,7 +43,7 @@ bool random=false;
 int brute=0;
 int repthreshold=0;
 int debug=0;
-int limit=INT_MAX;
+unsigned int limit=UINT_MAX;
 
 
 CSimpleOptA::SOption g_rgOptions[] =
@@ -122,7 +122,7 @@ void cmdline(char *argv[], int argc) {
 	CSimpleOptA args(argc, argv, g_rgOptions, SO_O_NOSLASH|SO_O_CLUMP|SO_O_EXACT|SO_O_SHORTARG|SO_O_FILEARG|SO_O_CLUMP_ARGD);
 	while (args.Next()) {
 		if (args.LastError() != SO_SUCCESS) {
-			printf("Argument Error: %s, Option Text: %s\nTry --help\n", args.LastError(), args.OptionText());
+			printf("Argument Error: %d, Option Text: %s\nTry --help\n", args.LastError(), args.OptionText());
 			exit(1);
 		}
 		switch(args.OptionId()) {
@@ -174,7 +174,7 @@ void cmdline(char *argv[], int argc) {
 				}
 				break;
 			case OPT_LIMIT:
-				limit=atoi(args.OptionArg());
+				limit=max(atoi(args.OptionArg()),0);
 				if(limit<1) {
 					printf("Match set limit be 1 or greater. You supplied: %s\n", args.OptionArg());
 				}
@@ -256,7 +256,7 @@ inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture
 	return tcost;
 }
 
-int gensimmatches(int simt, unsigned int firstcostcandidate, vector<costst> &costs, vector<fixture> &currentgames, unsigned int &missedcost) {
+unsigned int gensimmatches(int simt, unsigned int firstcostcandidate, vector<costst> &costs, vector<fixture> &currentgames, unsigned int &missedcost) {
 	int t=simt;
 	unsigned int nextcandidatefx=firstcostcandidate;
 	unsigned int tcost=0;
@@ -293,7 +293,7 @@ unsigned int gensimmatchesbrute(vector<fixture> currentfixture, vector<costst> &
 	unsigned int cost1=UINT_MAX;
 	unsigned int cost2=UINT_MAX;
 	unsigned int lpfc=runningcost;	//lowest possible future cost
-	for(int i=0; i<gamesleft; i++) lpfc+=costs[costtotry+i].cost;
+	for(unsigned int i=0; i<gamesleft; i++) lpfc+=costs[costtotry+i].cost;
 	if(lpfc < bestcost) {
 		if(!haveteams[costs[costtotry].team1] && !haveteams[costs[costtotry].team2]) {
 			vector<fixture> newfixture = currentfixture;
@@ -358,9 +358,9 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 	if(mint<2) return;
 	if(simt<=0) return;
 
-	for(int n=mint; n<=maxt; n++) {
-		int games=n*(n-1)/2;			//number of games is O(n^2)
-		int maxgames=games;
+	for(unsigned int n=mint; n<=(unsigned int) maxt; n++) {
+		unsigned int games=n*(n-1)/2;			//number of games is O(n^2)
+		unsigned int maxgames=games;
 
 		while(maxgames%simt) maxgames+=games;	//make sure that we end on a integral boundary of game rounds
 		maxgames/=simt;
