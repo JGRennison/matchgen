@@ -27,6 +27,7 @@
 #include <vector>
 #include <list>
 #include <algorithm>
+#include <string>
 #include <limits.h>
 #include <math.h>
 #include "SimpleOpt.h"
@@ -217,11 +218,13 @@ inline bool fixturesortfunc(fixture s1, fixture s2) {
 	else return false;
 }
 
-unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &prevgames) {
+inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &prevgames, unsigned int n) {
 	if(i==j) return INT_MAX;
 	unsigned int tcost=0;
 	list< vector<fixture> >::reverse_iterator rit;
 	unsigned int iternum=0;
+	vector<bool> teamssincelast(n,false);	//if we see a team before or whilst encountering i or j, set to true
+	bool reachedlast=false;
 	for( rit=prevgames.rbegin() ; rit != prevgames.rend(); rit++ ) {
 		unsigned int cost=0;
 		vector<fixture>::iterator fx;
@@ -231,10 +234,24 @@ unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &pr
 			if(fx->team2==j) cost+=1;
 			if(fx->team1==j) cost+=1;
 			if(fx->team2==i) cost+=1;
+			if(!reachedlast) {
+				teamssincelast[fx->team1]=true;
+				teamssincelast[fx->team2]=true;
+			}
 		}
-		tcost+=(((double) cost)*(10.0+(50.0*exp(-sqrt(1.0*iternum)))));
-		if(debug>=4) printf("%d v %d, tcost: %d, iternum: %d, cost: %d\n", i+1, j+1, tcost, iternum, cost);
+		if(cost) reachedlast=true;
+		if(cost) tcost+=(((double) cost)*(10.0+(50.0*exp(-sqrt(1.0*iternum)))));
+		if((debug>=5 && cost) || debug>=6 ) printf("%d v %d, tcost: %d, iternum: %d, cost: %d\n", i+1, j+1, tcost, iternum, cost);
 		iternum++;
+	}
+	for(unsigned int c=0; c<n; c++) {
+		if(c==i) continue;
+		if(c==j) continue;
+		if(!teamssincelast[c]) {
+			tcost+=(tcost/2);
+			if(debug>=5) printf("%d v %d, added 50%% penalty, new tcost: %d\n", i+1, j+1, tcost);
+			break;
+		}
 	}
 	return tcost;
 }
@@ -302,6 +319,39 @@ unsigned int gensimmatchesbrute(vector<fixture> currentfixture, vector<costst> &
 	return min(cost1,cost2);
 }
 
+void checkdumpnesting(string &s, unsigned int team, list< vector<fixture> > &prevgames, unsigned int n) {
+	char buffer[100];
+	list< vector<fixture> >::reverse_iterator rit;
+	bool stop=false;
+	vector<unsigned int> teamssincelast(n,0);
+	for( rit=prevgames.rbegin() ; rit != prevgames.rend(); rit++ ) {
+		vector<fixture>::iterator fx;
+		for(fx=rit->begin() ; fx != rit->end(); fx++ ) {
+			if(fx->team1==team || fx->team2==team) {
+				stop=true;
+				break;
+			}
+		}
+		if(stop) break;
+		for(fx=rit->begin() ; fx != rit->end(); fx++ ) {
+			teamssincelast[fx->team1]++;
+			teamssincelast[fx->team2]++;
+		}
+	}
+	string cat;
+	for(unsigned int i=0; i<n; i++) {
+		if(teamssincelast[i]>=2) {
+			snprintf(buffer, sizeof(buffer), " %d,", i+1);
+			cat+=buffer;
+		}
+	}
+	if(cat.size()) {
+		snprintf(buffer, sizeof(buffer), "\t%d:", team+1);
+		s+=buffer;
+		s+=cat;
+	}
+}
+
 void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for each number of games
 	mint=max(mint,simt*2);				//check that we've got sensible inputs
 	if(maxt<mint) return;
@@ -329,9 +379,9 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 				for(unsigned int j=i+1; j<n; j++) {			//number of costs to calculate for each game is order O(n^2) per game
 					costs[costnum].team1=i;
 					costs[costnum].team2=j;
-					costs[costnum].cost=getcost(i,j, prevgames);	//each cost is of same order to calculate as number of (previous) games, which is O(n^2)
+					costs[costnum].cost=getcost(i,j, prevgames, n);	//each cost is of same order to calculate as number of (previous) games, which is O(n^2)
 					if(random) costs[costnum].randval=rand();
-					if(debug>=3) printf("%d, %d, %d\n", i+1, j+1, costs[costnum].cost);
+					if(debug>=4) printf("Cost of fixture: %d v %d is %d\n", i+1, j+1, costs[costnum].cost);
 					costnum++;
 				}
 			}
@@ -345,7 +395,7 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 				//now calculate actual games
 				unsigned int missedcost;
 				unsigned int tcost=gensimmatches(simt, 0, costs, currentgames, missedcost);
-				if(debug>=2) printf("Sim Match Total: %d, missed: %d\n", tcost, missedcost);
+				if(debug>=3) printf("Sim Match Total: %d, missed: %d\n", tcost, missedcost);
 
 			}
 			else {			//not many games to choose from, do it more thoroughly/brute force it
@@ -353,21 +403,30 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 				unsigned int bestcost=UINT_MAX;
 				vector<fixture> currentfixture;
 				unsigned int gotcost=gensimmatchesbrute(currentfixture, costs, 0, simt, haveteams, 0, bestcost, currentgames);
-				if(debug>=2) printf("Sim Match Total: %d, (brute forced)\n", gotcost);
+				if(debug>=3) printf("Sim Match Total: %d, (brute forced)\n", gotcost);
 			}
 
 			sort(currentgames.begin(), currentgames.end(), fixturesortfunc);
 
-			prevgames.push_back(currentgames);
 
+			string nestdump;
 			vector<fixture>::iterator fx=currentgames.begin();
 			do {
 				printf("%2d v %2d", fx->team1+1, fx->team2+1);
+				if(debug>=2) {
+					checkdumpnesting(nestdump, fx->team1, prevgames, n);
+					checkdumpnesting(nestdump, fx->team2, prevgames, n);
+				}
 				fx++;
 				if(fx == currentgames.end()) break;
 				printf("\t");				//don't add a tab to the last entry
 
 			} while(true);
+			if(debug>=2 && nestdump.size()) {
+				printf("\tNesting alert: %s", nestdump.c_str());
+			}
+
+			prevgames.push_back(currentgames);
 			printf("\n");
 		}
 
