@@ -33,6 +33,16 @@
 #include "SimpleOpt.h"
 using namespace std;
 
+#define DEBUG_MATRIX 1
+#define DEBUG_GAP 1
+#define DEBUG_NEST 2
+#define DEBUG_PLAYCOUNT 2
+#define DEBUG_TCOSTCOND 5
+#define DEBUG_TCOSTALL 6
+#define DEBUG_COSTPENALTY 5
+#define DEBUG_COSTDUMP 4
+#define DEBUG_MATCHTOTAL 3
+
 enum { OPT_MAXTEAMS, OPT_MINTEAMS, OPT_SIMU, OPT_RANDOM, OPT_HELP, OPT_DUPRS, OPT_CREDITS, OPT_DEBUG, OPT_LIMIT,
 OPT_BRUTEON, OPT_BRUTEOFF, OPT_SETTEAMS };
 
@@ -242,7 +252,7 @@ inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture
 		}
 		if(cost) reachedlast=true;
 		if(cost) tcost+=(((double) cost)*(10.0+(50.0*exp(-sqrt(1.0*iternum)))));
-		if((debug>=5 && cost) || debug>=6 ) printf("%d v %d, tcost: %d, iternum: %d, cost: %d\n", i+1, j+1, tcost, iternum, cost);
+		if((debug>=DEBUG_TCOSTCOND && cost) || debug>=DEBUG_TCOSTALL ) printf("%d v %d, tcost: %d, iternum: %d, cost: %d\n", i+1, j+1, tcost, iternum, cost);
 		iternum++;
 	}
 	for(unsigned int c=0; c<n; c++) {
@@ -250,7 +260,7 @@ inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture
 		if(c==j) continue;
 		if(!teamssincelast[c]) {
 			tcost+=(tcost/2);
-			if(debug>=5) printf("%d v %d, added 50%% penalty due to %d, new tcost: %d\n", i+1, j+1, c+1, tcost);
+			if(debug>=DEBUG_COSTPENALTY) printf("%d v %d, added 50%% penalty due to %d, new tcost: %d\n", i+1, j+1, c+1, tcost);
 			break;
 		}
 	}
@@ -382,7 +392,7 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 					costs[costnum].team2=j;
 					costs[costnum].cost=getcost(i,j, prevgames, n);	//each cost is of same order to calculate as number of (previous) games, which is O(n^2)
 					if(random) costs[costnum].randval=rand();
-					if(debug>=4) printf("Cost of fixture: %d v %d is %d\n", i+1, j+1, costs[costnum].cost);
+					if(debug>=DEBUG_COSTDUMP) printf("Cost of fixture: %d v %d is %d\n", i+1, j+1, costs[costnum].cost);
 					costnum++;
 				}
 			}
@@ -396,7 +406,7 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 				//now calculate actual games
 				unsigned int missedcost;
 				unsigned int tcost=gensimmatches(simt, 0, costs, currentgames, missedcost);
-				if(debug>=3) printf("Sim Match Total: %d, missed: %d\n", tcost, missedcost);
+				if(debug>=DEBUG_MATCHTOTAL) printf("Sim Match Total: %d, missed: %d\n", tcost, missedcost);
 
 			}
 			else {			//not many games to choose from, do it more thoroughly/brute force it
@@ -404,7 +414,7 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 				unsigned int bestcost=UINT_MAX;
 				vector<fixture> currentfixture;
 				unsigned int gotcost=gensimmatchesbrute(currentfixture, costs, 0, simt, haveteams, 0, bestcost, currentgames);
-				if(debug>=3) printf("Sim Match Total: %d, (brute forced)\n", gotcost);
+				if(debug>=DEBUG_MATCHTOTAL) printf("Sim Match Total: %d, (brute forced)\n", gotcost);
 			}
 
 			sort(currentgames.begin(), currentgames.end(), fixturesortfunc);
@@ -414,7 +424,7 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 			vector<fixture>::iterator fx=currentgames.begin();
 			do {
 				printf("%2d v %2d", fx->team1+1, fx->team2+1);
-				if(debug>=2) {
+				if(debug>=DEBUG_NEST) {
 					checkdumpnesting(nestdump, fx->team1, prevgames, n);
 					checkdumpnesting(nestdump, fx->team2, prevgames, n);
 				}
@@ -423,17 +433,45 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 				printf("\t");				//don't add a tab to the last entry
 
 			} while(true);
-			if(debug>=2 && nestdump.size()) {
+			if(debug>=DEBUG_NEST && nestdump.size()) {
 				printf("\tNesting alert: %s", nestdump.c_str());
 			}
 
 			prevgames.push_back(currentgames);
+
+			if(debug>=DEBUG_PLAYCOUNT) {
+				list< vector<fixture> >::reverse_iterator rit;
+				vector<unsigned int> teamplayed(n,0);
+				for( rit=prevgames.rbegin() ; rit != prevgames.rend(); rit++ ) {
+					vector<fixture>::iterator fx;
+					for(fx=rit->begin() ; fx != rit->end(); fx++ ) {
+						teamplayed[fx->team1]++;
+						teamplayed[fx->team2]++;
+					}
+				}
+				unsigned int maxplayed=*max_element(teamplayed.begin(), teamplayed.end());
+				unsigned int minplayed=*min_element(teamplayed.begin(), teamplayed.end());
+				if(2+minplayed<=maxplayed) {
+					printf("\tGames played alert:");
+					for(unsigned int i=0; i<n; i++) {
+						int delta=maxplayed-teamplayed[i];
+						if(delta>=2) {
+							printf(" -%d(%d),", i+1,  delta);
+						}
+						int delta2=teamplayed[i]-minplayed;
+						if(delta2>=2) {
+							printf(" +%d(%d),", i+1,  delta2);
+						}
+					}
+				}
+			}
+
 			printf("\n");
 		}
 
 		printf("\n");
 
-		if(debug>0) {		//print matrix, it's symmetric, and should have 0 on the diagonals
+		if(debug>=DEBUG_MATRIX) {		//print matrix, it's symmetric, and should have 0 on the diagonals
 			vector<unsigned int> matchmatrix(n*n,0);
 			list< vector<fixture> >::iterator it;
 			unsigned int total=0;
@@ -459,7 +497,7 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 			}
 			printf("\n");
 		}
-		if(debug>0) {		//print gap analysis, this ignores the start gap
+		if(debug>=DEBUG_GAP) {		//print gap analysis, this ignores the start gap
 			vector<unsigned int> gapmatrix(n*prevgames.size(),0);
 			vector<unsigned int> lastplayed(n,0);
 			vector<unsigned int> totalgap(n,0);
