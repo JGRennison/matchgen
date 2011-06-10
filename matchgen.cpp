@@ -116,7 +116,7 @@ char argtext[]={
 "number of teams (n) approaches twice the number of simultaneous matches (s),\n"
 "for large values of s. It is normally applied when 2s<=n<2s+2. It is rather\n"
 "slow for large n and large s.\n"
-"The computation order for this is approximately: O(n^2s) per match set.\n\n"
+"The computation order for this is, in the worst case: O(n^2s) per match set.\n\n"
 };
 
 void cmdline(char *argv[], int argc) {
@@ -250,7 +250,7 @@ inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture
 		if(c==j) continue;
 		if(!teamssincelast[c]) {
 			tcost+=(tcost/2);
-			if(debug>=5) printf("%d v %d, added 50%% penalty, new tcost: %d\n", i+1, j+1, tcost);
+			if(debug>=5) printf("%d v %d, added 50%% penalty due to %d, new tcost: %d\n", i+1, j+1, c+1, tcost);
 			break;
 		}
 	}

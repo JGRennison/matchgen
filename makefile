@@ -7,10 +7,10 @@ else
 	CFLAGS:=-s
 endif
 
-CFLAGS2:=-Wall
+CFLAGS2:=-Wall -O3
 
 readme.txt: matchgen$(POSTFIX)
 	matchgen$(POSTFIX) --help > readme.txt
 
 matchgen$(POSTFIX): matchgen.cpp SimpleOpt.h
-	g++ -O3 -o matchgen$(POSTFIX) matchgen.cpp $(CFLAGS) $(CFLAGS2)
+	g++ -o matchgen$(POSTFIX) matchgen.cpp $(CFLAGS) $(CFLAGS2)
