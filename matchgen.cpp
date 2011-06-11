@@ -234,26 +234,35 @@ inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture
 	unsigned int tcost=0;
 	list< vector<fixture> >::reverse_iterator rit;
 	unsigned int iternum=0;
-	vector<bool> teamssincelast(n,false);	//if we see a team before or whilst encountering i or j, set to true
+	vector<bool> teamssincelasti(n,false);	//if we see a team before or whilst encountering i or j, set to true
+	vector<bool> teamssincelastj(n,false);
 	//vector<unsigned int> teamcount(n,0);
-	bool reachedlast=false;
+	bool reachedlasti=false;
+	bool reachedlastj=false;
 	for( rit=prevgames.rbegin() ; rit != prevgames.rend(); rit++ ) {
 		unsigned int cost=0;
 		vector<fixture>::iterator fx;
+		bool reachedlastitmp=false;
+		bool reachedlastjtmp=false;
 		for(fx=rit->begin() ; fx != rit->end(); fx++ ) {
-			if(fx->team1==i && fx->team2==j) cost+=1000;
-			if(fx->team1==i) cost+=1;
-			if(fx->team2==j) cost+=1;
-			if(fx->team1==j) cost+=1;
-			if(fx->team2==i) cost+=1;
-			if(!reachedlast) {
-				teamssincelast[fx->team1]=true;
-				teamssincelast[fx->team2]=true;
+			if(fx->team1==i && fx->team2==j) { cost+=1000; reachedlastitmp=true; reachedlastjtmp=true; }
+			if(fx->team1==i) { cost+=1; reachedlastitmp=true; }
+			if(fx->team2==j) { cost+=1; reachedlastjtmp=true; }
+			if(fx->team1==j) { cost+=1; reachedlastjtmp=true; }
+			if(fx->team2==i) { cost+=1; reachedlastitmp=true; }
+			if(!reachedlasti) {
+				teamssincelasti[fx->team1]=true;
+				teamssincelasti[fx->team2]=true;
+			}
+			if(!reachedlastj) {
+				teamssincelastj[fx->team1]=true;
+				teamssincelastj[fx->team2]=true;
 			}
 			//teamcount[fx->team1]++;
 			//teamcount[fx->team2]++;
 		}
-		if(cost) reachedlast=true;
+		reachedlasti|=reachedlastitmp;
+		reachedlastj|=reachedlastjtmp;
 		if(cost) tcost+=(((double) cost)*(10.0+(50.0*exp(-sqrt(1.0*iternum)))));
 		if((debug>=DEBUG_TCOSTCOND && cost) || debug>=DEBUG_TCOSTALL ) printf("%d v %d, tcost: %d, iternum: %d, cost: %d\n", i+1, j+1, tcost, iternum, cost);
 		iternum++;
@@ -261,10 +270,13 @@ inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture
 	for(unsigned int c=0; c<n; c++) {
 		if(c==i) continue;
 		if(c==j) continue;
-		if(!teamssincelast[c]) {
-			tcost+=(tcost/2);
-			if(debug>=DEBUG_COSTPENALTY) printf("%d v %d, added 50%% penalty due to %d, new tcost: %d\n", i+1, j+1, c+1, tcost);
-			break;
+		if(!teamssincelasti[c]) {
+			tcost+=200;// (tcost/2);
+			if(debug>=DEBUG_COSTPENALTY) printf("%d v %d, added 200 penalty due to %d, new tcost: %d\n", i+1, j+1, c+1, tcost);
+		}
+		if(!teamssincelastj[c]) {
+			tcost+=200;// (tcost/2);
+			if(debug>=DEBUG_COSTPENALTY) printf("%d v %d, added 200 penalty due to %d, new tcost: %d\n", i+1, j+1, c+1, tcost);
 		}
 	}
 	//unsigned int minplayed=*min_element(teamcount.begin(), teamcount.end());
