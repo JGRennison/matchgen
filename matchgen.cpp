@@ -232,51 +232,24 @@ inline bool fixturesortfunc(fixture s1, fixture s2) {
 inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &prevgames, unsigned int n) {
 	if(i==j) return INT_MAX;
 	unsigned int tcost=0;
+	unsigned int tcost2=0;
 	list< vector<fixture> >::reverse_iterator rit;
 	unsigned int iternum=0;
-	vector<bool> teamssincelast(n,false);	//if we see a team before or whilst encountering i or j, set to true
-	//vector<unsigned int> teamcount(n,0);
-	bool reachedlast=false;
 	for( rit=prevgames.rbegin() ; rit != prevgames.rend(); rit++ ) {
 		unsigned int cost=0;
 		vector<fixture>::iterator fx;
 		for(fx=rit->begin() ; fx != rit->end(); fx++ ) {
-			if(fx->team1==i && fx->team2==j) cost+=1000;
+			if(fx->team1==i && fx->team2==j) tcost2+=10000;
 			if(fx->team1==i) cost+=1;
 			if(fx->team2==j) cost+=1;
 			if(fx->team1==j) cost+=1;
 			if(fx->team2==i) cost+=1;
-			if(!reachedlast) {
-				teamssincelast[fx->team1]=true;
-				teamssincelast[fx->team2]=true;
-			}
-			//teamcount[fx->team1]++;
-			//teamcount[fx->team2]++;
 		}
-		if(cost) reachedlast=true;
 		if(cost) tcost+=(((double) cost)*(10.0+(50.0*exp(-sqrt(1.0*iternum)))));
 		if((debug>=DEBUG_TCOSTCOND && cost) || debug>=DEBUG_TCOSTALL ) printf("%d v %d, tcost: %d, iternum: %d, cost: %d\n", i+1, j+1, tcost, iternum, cost);
 		iternum++;
 	}
-	for(unsigned int c=0; c<n; c++) {
-		if(c==i) continue;
-		if(c==j) continue;
-		if(!teamssincelast[c]) {
-			tcost+=(tcost/2);
-			if(debug>=DEBUG_COSTPENALTY) printf("%d v %d, added 50%% penalty due to %d, new tcost: %d\n", i+1, j+1, c+1, tcost);
-			break;
-		}
-	}
-	//unsigned int minplayed=*min_element(teamcount.begin(), teamcount.end());
-	//if(teamcount[i]>minplayed) {
-	//	tcost<<=1;//+=(tcost/2);
-	//	if(debug>=DEBUG_COSTPENALTY) printf("%d v %d, added 100%% penalty, %d>%d, new tcost: %d\n", i+1, j+1, teamcount[i], minplayed, tcost);
-	//}
-	//if(teamcount[j]>minplayed) {
-	//	tcost<<=1;//+=(tcost/2);
-	//	if(debug>=DEBUG_COSTPENALTY) printf("%d v %d, added 100%% penalty, %d>%d, new tcost: %d\n", i+1, j+1, teamcount[j], minplayed,  tcost);
-	//}
-	return tcost;
+	return tcost+tcost2;
 }
 
 unsigned int gensimmatches(int simt, unsigned int firstcostcandidate, vector<costst> &costs, vector<fixture> &currentgames, unsigned int &missedcost) {
