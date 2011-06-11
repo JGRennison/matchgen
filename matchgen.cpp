@@ -39,7 +39,6 @@ using namespace std;
 #define DEBUG_PLAYCOUNT 2
 #define DEBUG_TCOSTCOND 5
 #define DEBUG_TCOSTALL 6
-#define DEBUG_COSTPENALTY 5
 #define DEBUG_COSTDUMP 4
 #define DEBUG_MATCHTOTAL 3
 
@@ -229,24 +228,32 @@ inline bool fixturesortfunc(fixture s1, fixture s2) {
 	else return false;
 }
 
-inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &prevgames, unsigned int n) {
+inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &prevgames, unsigned int n, double targetgap) {
 	if(i==j) return INT_MAX;
 	unsigned int tcost=0;
 	unsigned int tcost2=0;
+	bool gotprevi=false;
+	bool gotprevj=false;
 	list< vector<fixture> >::reverse_iterator rit;
 	unsigned int iternum=0;
 	for( rit=prevgames.rbegin() ; rit != prevgames.rend(); rit++ ) {
 		unsigned int cost=0;
 		vector<fixture>::iterator fx;
 		for(fx=rit->begin() ; fx != rit->end(); fx++ ) {
-			if(fx->team1==i && fx->team2==j) tcost2+=10000;
-			if(fx->team1==i) cost+=1;
-			if(fx->team2==j) cost+=1;
-			if(fx->team1==j) cost+=1;
-			if(fx->team2==i) cost+=1;
+			if(fx->team1==i && fx->team2==j) tcost2+=100000;
+			if(fx->team1==i || fx->team2==i) {
+				cost+=1;
+				if(!gotprevi) tcost2+=max(5000.0-50.0*pow(((iternum+1.0)-targetgap),3),0.0);
+				gotprevi=true;
+			}
+			if(fx->team1==j || fx->team2==j) {
+				cost+=1;
+				if(!gotprevj) tcost2+=max(5000.0-50.0*pow(((iternum+1.0)-targetgap),3),0.0);
+				gotprevj=true;
+			}
 		}
-		if(cost) tcost+=(((double) cost)*(10.0+(50.0*exp(-sqrt(1.0*iternum)))));
-		if((debug>=DEBUG_TCOSTCOND && cost) || debug>=DEBUG_TCOSTALL ) printf("%d v %d, tcost: %d, iternum: %d, cost: %d\n", i+1, j+1, tcost, iternum, cost);
+		if(cost) tcost+=(((double) cost)*(100.0+(250.0*exp(-sqrt(1.0*iternum)))));
+		if((debug>=DEBUG_TCOSTCOND && cost) || debug>=DEBUG_TCOSTALL ) printf("%d v %d, tcost: %d, tcost2: %d, iternum: %d, cost: %d\n", i+1, j+1, tcost, tcost2, iternum, cost);
 		iternum++;
 	}
 	return tcost+tcost2;
@@ -373,6 +380,8 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 
 		maxgames=min(maxgames, limit);
 
+		double targetgap=n/(simt*2);
+
 		list< vector<fixture> > prevgames;
 		vector<int> matchesleft(n*(n-1)/2,matchrepeatfactor);
 
@@ -397,7 +406,7 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 					costs[costnum].team1=i;
 					costs[costnum].team2=j;
 					if(matchesleft[costnum]>0) {
-						costs[costnum].cost=getcost(i,j, prevgames, n);	//each cost is of same order to calculate as number of (previous) games, which is O(n^2)
+						costs[costnum].cost=getcost(i,j, prevgames, n, targetgap);	//each cost is of same order to calculate as number of (previous) games, which is O(n^2)
 						if(random) costs[costnum].randval=rand();
 						if(debug>=DEBUG_COSTDUMP) printf("Cost of fixture: %d v %d is %d\n", i+1, j+1, costs[costnum].cost);
 					}
@@ -467,13 +476,14 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 					printf("\tGames played alert:");
 					for(unsigned int i=0; i<n; i++) {
 						int delta=maxplayed-teamplayed[i];
-						if(delta>=2) {
-							printf(" -%d(%d),", i+1,  delta);
-						}
 						int delta2=teamplayed[i]-minplayed;
-						if(delta2>=2) {
-							printf(" +%d(%d),", i+1,  delta2);
+						if(delta>=2) {
+							printf(" %d(%d,-%d),", i+1, teamplayed[i], delta);
 						}
+						else if(delta2>=2) {
+							printf(" %d(%d,+%d),", i+1, teamplayed[i], delta2);
+						}
+						//else printf(" %d(%d,-%d,+%d),", i+1, teamplayed[i], delta, delta2);
 					}
 				}
 			}
