@@ -316,7 +316,13 @@ unsigned int gensimmatchesbrute(vector<fixture> currentfixture, vector<costst> &
 	unsigned int cost1=UINT_MAX;
 	unsigned int cost2=UINT_MAX;
 	unsigned int lpfc=runningcost;	//lowest possible future cost
-	for(unsigned int i=0; i<gamesleft; i++) lpfc+=costs[costtotry+i].cost;
+	for(unsigned int i=0; i<gamesleft; i++) {
+		if(costs[costtotry+i].cost==UINT_MAX) {
+			lpfc=UINT_MAX;
+			break;
+		}
+		lpfc+=costs[costtotry+i].cost;
+	}
 	if(lpfc < bestcost) {
 		if(!haveteams[costs[costtotry].team1] && !haveteams[costs[costtotry].team2]) {
 			vector<fixture> newfixture = currentfixture;
@@ -325,7 +331,7 @@ unsigned int gensimmatchesbrute(vector<fixture> currentfixture, vector<costst> &
 			newfixture.push_back(f1);
 			newhaveteams[costs[costtotry].team1]=true;
 			newhaveteams[costs[costtotry].team2]=true;
-			if(gamesleft>1) {
+			if(gamesleft>1 && costs[costtotry].cost!=UINT_MAX) {
 				cost1=gensimmatchesbrute(newfixture, costs, costtotry+1, gamesleft-1, newhaveteams, runningcost+costs[costtotry].cost, bestcost, bestfixture);
 			}
 			else {
