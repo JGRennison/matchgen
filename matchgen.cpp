@@ -384,13 +384,18 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 	for(unsigned int n=mint; n<=(unsigned int) maxt; n++) {
 		unsigned int games=n*(n-1)/2;			//number of games is O(n^2)
 		unsigned int maxgames=games;
+		int matchrepeatfactor=1;
 
-		while(maxgames%simt) maxgames+=games;	//make sure that we end on a integral boundary of game rounds
+		while(maxgames%simt) {
+			maxgames+=games;	//make sure that we end on a integral boundary of game rounds
+			matchrepeatfactor++;
+		}
 		maxgames/=simt;
 
 		maxgames=min(maxgames, limit);
 
 		list< vector<fixture> > prevgames;
+		vector<int> matchesleft(n*(n-1)/2,matchrepeatfactor);
 
 		printf("%d teams\n",n);
 
@@ -398,13 +403,26 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 			vector<costst> costs(n*(n-1)/2);
 
 			unsigned int costnum=0;
+
+			//i,j->costnum
+			//sequence = 0,1 ... 0,n-1 1,2 ... 1,n-1
+			//i->costnum offset
+			//sum of i terms of n-1, n-2, etc
+			//=(i/2) * (2(n-1) + (i-1)*(-1))
+			//=0.5*i*(2n-1-i)
+			//j->costnum offset
+			//=j-(i+1)
+
 			for(unsigned int i=0; i<n; i++) {
 				for(unsigned int j=i+1; j<n; j++) {			//number of costs to calculate for each game is order O(n^2) per game
 					costs[costnum].team1=i;
 					costs[costnum].team2=j;
-					costs[costnum].cost=getcost(i,j, prevgames, n);	//each cost is of same order to calculate as number of (previous) games, which is O(n^2)
-					if(random) costs[costnum].randval=rand();
-					if(debug>=DEBUG_COSTDUMP) printf("Cost of fixture: %d v %d is %d\n", i+1, j+1, costs[costnum].cost);
+					if(matchesleft[costnum]>0) {
+						costs[costnum].cost=getcost(i,j, prevgames, n);	//each cost is of same order to calculate as number of (previous) games, which is O(n^2)
+						if(random) costs[costnum].randval=rand();
+						if(debug>=DEBUG_COSTDUMP) printf("Cost of fixture: %d v %d is %d\n", i+1, j+1, costs[costnum].cost);
+					}
+					else costs[costnum].cost=UINT_MAX;
 					costnum++;
 				}
 			}
@@ -436,6 +454,9 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 			vector<fixture>::iterator fx=currentgames.begin();
 			do {
 				printf("%2d v %2d", fx->team1+1, fx->team2+1);
+
+				matchesleft[fx->team2-1-fx->team1+(fx->team1*((2*n)-1-fx->team1)/2)]--;
+
 				if(debug>=DEBUG_NEST) {
 					checkdumpnesting(nestdump, fx->team1, prevgames, n);
 					checkdumpnesting(nestdump, fx->team2, prevgames, n);
