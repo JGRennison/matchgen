@@ -111,7 +111,7 @@ char argtext[]={
 "-d num, --debug num\n"
 "	Sets the debug level to num.\n"
 "	Debug level one displays some result statistics.\n"
-"	Level two also displays nested team notifications.\n"
+"	Level two also displays nested team and play count warnings.\n"
 "	Higher than that is likely only of interest to developers.\n"
 "-b, --brute-force-game-set\n"
 "	Brute-forces generating a set of simultaneous matches from game costs.\n"
@@ -235,6 +235,7 @@ inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture
 	list< vector<fixture> >::reverse_iterator rit;
 	unsigned int iternum=0;
 	vector<bool> teamssincelast(n,false);	//if we see a team before or whilst encountering i or j, set to true
+	//vector<unsigned int> teamcount(n,0);
 	bool reachedlast=false;
 	for( rit=prevgames.rbegin() ; rit != prevgames.rend(); rit++ ) {
 		unsigned int cost=0;
@@ -249,6 +250,8 @@ inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture
 				teamssincelast[fx->team1]=true;
 				teamssincelast[fx->team2]=true;
 			}
+			//teamcount[fx->team1]++;
+			//teamcount[fx->team2]++;
 		}
 		if(cost) reachedlast=true;
 		if(cost) tcost+=(((double) cost)*(10.0+(50.0*exp(-sqrt(1.0*iternum)))));
@@ -264,6 +267,15 @@ inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture
 			break;
 		}
 	}
+	//unsigned int minplayed=*min_element(teamcount.begin(), teamcount.end());
+	//if(teamcount[i]>minplayed) {
+	//	tcost<<=1;//+=(tcost/2);
+	//	if(debug>=DEBUG_COSTPENALTY) printf("%d v %d, added 100%% penalty, %d>%d, new tcost: %d\n", i+1, j+1, teamcount[i], minplayed, tcost);
+	//}
+	//if(teamcount[j]>minplayed) {
+	//	tcost<<=1;//+=(tcost/2);
+	//	if(debug>=DEBUG_COSTPENALTY) printf("%d v %d, added 100%% penalty, %d>%d, new tcost: %d\n", i+1, j+1, teamcount[j], minplayed,  tcost);
+	//}
 	return tcost;
 }
 
