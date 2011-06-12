@@ -43,7 +43,7 @@ using namespace std;
 #define DEBUG_MATCHTOTAL 3
 
 enum { OPT_MAXTEAMS, OPT_MINTEAMS, OPT_SIMU, OPT_RANDOM, OPT_HELP, OPT_DUPRS, OPT_CREDITS, OPT_DEBUG, OPT_LIMIT,
-OPT_BRUTEON, OPT_BRUTEOFF, OPT_SETTEAMS };
+OPT_BRUTEON, OPT_BRUTEOFF, OPT_SETTEAMS, OPT_HEADER };
 
 int maxteams=20;
 int minteams=4;
@@ -53,6 +53,7 @@ int brute=0;
 int repthreshold=0;
 int debug=0;
 unsigned int limit=UINT_MAX;
+bool header=false;
 
 
 CSimpleOptA::SOption g_rgOptions[] =
@@ -80,11 +81,14 @@ CSimpleOptA::SOption g_rgOptions[] =
 	{ OPT_BRUTEOFF,		"--dont-brute-force-game-set",SO_NONE  },
 	{ OPT_BRUTEON,		"-b",			SO_NONE  },
 	{ OPT_BRUTEOFF,		"-f",			SO_NONE  },
+	{ OPT_HEADER,		"-i",			SO_NONE  },
+	{ OPT_HEADER,		"--header",		SO_NONE  },
 	SO_END_OF_OPTIONS
 };
 
+char version[]="Match Fixture List Generator: version: " __TIMESTAMP__;
+
 char argtext[]={
-"Match Fixture List Generator: version: " __TIMESTAMP__ "\n"
 "Author: Jonathan G. Rennison\n"
 "License: GPLv2\n"
 "Credits: SimpleOpt command-line processing library v3.4 by Brodie Thiesfield,\n"
@@ -116,16 +120,21 @@ char argtext[]={
 "	Brute-forces generating a set of simultaneous matches from game costs.\n"
 "-f, --dont-brute-force-game-set\n"
 "	Never use the above brute-forcing method.\n"
+"-i, --header\n"
+"	Display an informational header at the start of the output.\n"
 "\n"
-"Note that the algorithm used is of order O(n^6) (!!!) when generating a\n"
-"full fixture list. This program is intended to be used with a small (<60)\n"
-"number of teams (n). Consider using -l/--limit for larger numbers of teams.\n"
+"Note that generating a full fixture list is an operation of approximate order\n"
+"O(n^6) in time/computation (!!!).\n"
+"This program is intended to be used with a small (<60) number of teams (n).\n"
+"Consider using -l/--limit for larger numbers of teams.\n"
 "\n"
 "The brute-forcing method is intended to solve issues of poor results when the\n"
 "number of teams (n) approaches twice the number of simultaneous matches (s),\n"
-"for large values of s. It is normally applied when 2s<=n<2s+2. It is rather\n"
-"slow for large n and large s.\n"
-"The computation order for this is, in the worst case: O(n^2s) per match set.\n\n"
+"and/or when s is large. By default it is used when 2s<=n<=2s+2.\n"
+"It will however produce better or equal results for all n, s.\n"
+"It can be rather slow for large n and large s, as the computation order for\n"
+"calculating a single match set is, in the worst case: O(n^s).\n"
+"The default method is a simple greedy search.\n"
 };
 
 void cmdline(char *argv[], int argc) {
@@ -137,32 +146,32 @@ void cmdline(char *argv[], int argc) {
 		}
 		switch(args.OptionId()) {
 			case OPT_HELP: {
-				printf("%s", argtext);
+				printf("%s\n%s", version, argtext);
 				exit(0);
 			}
 			case OPT_MAXTEAMS:
 				maxteams=atoi(args.OptionArg());
-				if(maxteams<2 || maxteams>99) {
-					printf("Maximum teams should be between 2 and 99. You supplied: %s\n", args.OptionArg());
+				if(maxteams<2) {
+					printf("Maximum teams should be 2 or greater. You supplied: %s\n", args.OptionArg());
 				}
 				break;
 			case OPT_MINTEAMS:
 				minteams=atoi(args.OptionArg());
-				if(minteams<2 || minteams>99) {
-					printf("Minimum teams should be between 2 and 99. You supplied: %s\n", args.OptionArg());
+				if(minteams<2) {
+					printf("Minimum teams should be 2 or greater. You supplied: %s\n", args.OptionArg());
 				}
 				break;
 			case OPT_SETTEAMS:
 				minteams=atoi(args.OptionArg());
 				maxteams=minteams;
-				if(minteams<2 || minteams>99) {
-					printf("Teams should be between 2 and 99. You supplied: %s\n", args.OptionArg());
+				if(minteams<2) {
+					printf("Teams should be 2 or greater. You supplied: %s\n", args.OptionArg());
 				}
 				break;
 			case OPT_SIMU:
 				simu=atoi(args.OptionArg());
-				if(simu<1 || simu>10) {
-					printf("Simultaneous games should be between 1 and 10. You supplied: %s\n", args.OptionArg());
+				if(simu<1) {
+					printf("Simultaneous games should be 1 or greater. You supplied: %s\n", args.OptionArg());
 				}
 				break;
 			case OPT_DEBUG:
@@ -180,14 +189,17 @@ void cmdline(char *argv[], int argc) {
 			case OPT_DUPRS:
 				repthreshold=atoi(args.OptionArg());
 				if(repthreshold<2 || repthreshold>98) {
-					printf("Team threshold for repetition with simultaneous game reduction must be between 2 and 98. You supplied: %s\n", args.OptionArg());
+					printf("Team threshold for repetition with simultaneous game reduction should be between 2 and 98. You supplied: %s\n", args.OptionArg());
 				}
 				break;
 			case OPT_LIMIT:
 				limit=max(atoi(args.OptionArg()),0);
 				if(limit<1) {
-					printf("Match set limit be 1 or greater. You supplied: %s\n", args.OptionArg());
+					printf("Match set limit should be 1 or greater. You supplied: %s\n", args.OptionArg());
 				}
+				break;
+			case OPT_HEADER:
+				header=true;
 				break;
 			case -1:
 				printf("Not an argument: %s, try --help\n", args.OptionArg());
@@ -579,6 +591,14 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 int main( int argc, char *argv[]) {
 	cmdline(argv, argc);
 	if(random) srand (time(NULL));
+	if(header) {
+		printf("%s\nCommand line: ", version);
+		for(int i=0; i<argc; i++) printf("%s ", argv[i]);
+		char buff[256];
+		time_t curtime=time(0);
+		strftime(buff, 255, "%Y-%m-%d %H:%M:%SZ", gmtime(&curtime));
+		printf("\nTime: %s\n\n\n", buff);
+	}
 
 	genfixtureset(minteams, maxteams, simu);
 
