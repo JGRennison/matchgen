@@ -431,7 +431,7 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 
 			sort(costs.begin(), costs.end(), costsortfunc);
 
-			if((n>=((2*simt)+2) && brute==0) || brute<0) {	//normal mode, pick first games that fit, greedy
+			if((n>((2*simt)+2) && brute==0) || brute<0) {	//normal mode, pick first games that fit, greedy
 
 				//now calculate actual games
 				unsigned int missedcost;
