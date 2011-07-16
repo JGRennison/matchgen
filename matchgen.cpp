@@ -43,7 +43,7 @@ using namespace std;
 #define DEBUG_MATCHTOTAL 3
 
 enum { OPT_MAXTEAMS, OPT_MINTEAMS, OPT_SIMU, OPT_RANDOM, OPT_HELP, OPT_DUPRS, OPT_CREDITS, OPT_DEBUG, OPT_LIMIT,
-OPT_BRUTEON, OPT_BRUTEOFF, OPT_SETTEAMS, OPT_HEADER };
+OPT_BRUTEON, OPT_BRUTEOFF, OPT_SETTEAMS, OPT_HEADER, OPT_OUTPUT };
 
 int maxteams=20;
 int minteams=4;
@@ -54,6 +54,8 @@ int repthreshold=0;
 int debug=0;
 unsigned int limit=UINT_MAX;
 bool header=false;
+char *outfilename=0;
+FILE *outhandle=0;
 
 
 CSimpleOptA::SOption g_rgOptions[] =
@@ -83,6 +85,8 @@ CSimpleOptA::SOption g_rgOptions[] =
 	{ OPT_BRUTEOFF,		"-f",			SO_NONE  },
 	{ OPT_HEADER,		"-i",			SO_NONE  },
 	{ OPT_HEADER,		"--header",		SO_NONE  },
+	{ OPT_OUTPUT,		"-o",			SO_REQ_SHRT  },
+	{ OPT_OUTPUT,		"--output-file",	SO_REQ_SHRT  },
 	SO_END_OF_OPTIONS
 };
 
@@ -122,6 +126,9 @@ char argtext[]={
 "	Never use the above brute-forcing method.\n"
 "-i, --header\n"
 "	Display an informational header at the start of the output.\n"
+"-o file, --output-file file\n"
+"	Also write output (excluding debug information) to 'file'.\n"
+"	'file' must be representable in the locale/ANSI character set.\n"
 "\n"
 "Note that generating a full fixture list is an operation of approximate order\n"
 "O(n^6) in time/computation (!!!).\n"
@@ -201,13 +208,22 @@ void cmdline(char *argv[], int argc) {
 			case OPT_HEADER:
 				header=true;
 				break;
+			case OPT_OUTPUT:
+				outfilename=args.OptionArg();
+				break;
 			case -1:
 				printf("Not an argument: %s, try --help\n", args.OptionArg());
 				exit(1);
 				break;
 		}
 	}
-
+	if(outfilename) {
+		outhandle=fopen(outfilename,"w");
+		if(!outhandle) {
+			printf("Cannot open file for writing: %s\n", outfilename);
+			exit(2);
+		}
+	}
 }
 
 struct costst {
@@ -397,7 +413,8 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 		list< vector<fixture> > prevgames;
 		vector<int> matchesleft(n*(n-1)/2,matchrepeatfactor);
 
-		printf("%d teams\n",n);
+		printf("%d teams\n", n);
+		if(outhandle) fprintf(outhandle, "%d teams\n", n);
 
 		for(unsigned int c=0; c<maxgames; c++) {
 			vector<costst> costs(n*(n-1)/2);
@@ -454,6 +471,7 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 			vector<fixture>::iterator fx=currentgames.begin();
 			do {
 				printf("%2d v %2d", fx->team1+1, fx->team2+1);
+				if(outhandle) fprintf(outhandle, "%2d v %2d", fx->team1+1, fx->team2+1);
 
 				matchesleft[fx->team2-1-fx->team1+(fx->team1*((2*n)-1-fx->team1)/2)]--;
 
@@ -464,6 +482,7 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 				fx++;
 				if(fx == currentgames.end()) break;
 				printf("\t");				//don't add a tab to the last entry
+				if(outhandle) fprintf(outhandle, "\t");
 
 			} while(true);
 			if(debug>=DEBUG_NEST && nestdump.size()) {
@@ -501,9 +520,11 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 			}
 
 			printf("\n");
+			if(outhandle) fprintf(outhandle, "\n");
 		}
 
 		printf("\n");
+		if(outhandle) fprintf(outhandle, "\n");
 
 		if(debug>=DEBUG_MATRIX) {		//print matrix, it's symmetric, and should have 0 on the diagonals
 			vector<unsigned int> matchmatrix(n*n,0);
@@ -593,11 +614,16 @@ int main( int argc, char *argv[]) {
 	if(random) srand (time(NULL));
 	if(header) {
 		printf("%s\nCommand line: ", version);
-		for(int i=0; i<argc; i++) printf("%s ", argv[i]);
+		if(outhandle) fprintf(outhandle, "%s\nCommand line: ", version);
+		for(int i=0; i<argc; i++) {
+			printf("%s ", argv[i]);
+			fprintf(outhandle, "%s ", argv[i]);
+		}
 		char buff[256];
 		time_t curtime=time(0);
 		strftime(buff, 255, "%Y-%m-%d %H:%M:%SZ", gmtime(&curtime));
 		printf("\nTime: %s\n\n\n", buff);
+		if(outhandle) fprintf(outhandle, "\nTime: %s\n\n\n", buff);
 	}
 
 	genfixtureset(minteams, maxteams, simu);
