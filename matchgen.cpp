@@ -41,9 +41,10 @@ using namespace std;
 #define DEBUG_TCOSTALL 6
 #define DEBUG_COSTDUMP 4
 #define DEBUG_MATCHTOTAL 3
+#define DEBUG_POSDIST 1
 
 enum { OPT_MAXTEAMS, OPT_MINTEAMS, OPT_SIMU, OPT_RANDOM, OPT_HELP, OPT_DUPRS, OPT_CREDITS, OPT_DEBUG, OPT_LIMIT,
-OPT_BRUTEON, OPT_BRUTEOFF, OPT_SETTEAMS, OPT_HEADER, OPT_OUTPUT };
+OPT_BRUTEON, OPT_BRUTEOFF, OPT_SETTEAMS, OPT_HEADER, OPT_OUTPUT, OPT_POSBALANCE };
 
 int maxteams=20;
 int minteams=4;
@@ -56,6 +57,7 @@ unsigned int limit=UINT_MAX;
 bool header=false;
 char *outfilename=0;
 FILE *outhandle=0;
+bool posbalance=false;
 
 
 CSimpleOptA::SOption g_rgOptions[] =
@@ -87,6 +89,8 @@ CSimpleOptA::SOption g_rgOptions[] =
 	{ OPT_HEADER,		"--header",		SO_NONE  },
 	{ OPT_OUTPUT,		"-o",			SO_REQ_SHRT  },
 	{ OPT_OUTPUT,		"--output-file",	SO_REQ_SHRT  },
+	{ OPT_POSBALANCE,	"-p",			SO_NONE  },
+	{ OPT_POSBALANCE,	"--position-balance",	SO_NONE  },
 	SO_END_OF_OPTIONS
 };
 
@@ -110,6 +114,9 @@ char argtext[]={
 "	Sets the number of simultaneous matches (s) to num. Default 2.\n"
 "-r, --random\n"
 "	Produce a randomised fixture list.\n"
+"-p, --position-balance\n"
+"	For s>1, balance the distribution of each team across each of the\n"
+"	simultaneous match positions. Otherwise sort by team number.\n"
 "-t num, --repeat-lower-simu-threshold num\n"
 "	Repeat the fixture list generation from the minimum number of teams to\n"
 "	this threshold, with the number of simultaneous matches reduced by one.\n"
@@ -211,6 +218,9 @@ void cmdline(char *argv[], int argc) {
 			case OPT_OUTPUT:
 				outfilename=args.OptionArg();
 				break;
+			case OPT_POSBALANCE:
+				posbalance=true;
+				break;
 			case -1:
 				printf("Not an argument: %s, try --help\n", args.OptionArg());
 				exit(1);
@@ -239,7 +249,7 @@ struct fixture {
 };
 
 
-inline bool costsortfunc(costst s1, costst s2) {
+inline bool costsortfunc(const costst s1, const costst s2) {
 	if(s1.cost<s2.cost) return true;
 	else if(s1.cost>s2.cost) return false;
 	else if(random) return (s1.randval<s2.randval);
@@ -249,7 +259,7 @@ inline bool costsortfunc(costst s1, costst s2) {
 	else return false;
 }
 
-inline bool fixturesortfunc(fixture s1, fixture s2) {
+inline bool fixturesortfunc(const fixture s1, const fixture s2) {
 	if(s1.team1<s2.team1) return true;
 	else if(s1.team1>s2.team1) return false;
 	else if(s1.team2<s2.team2) return true;
@@ -389,7 +399,7 @@ void checkdumpnesting(string &s, unsigned int team, list< vector<fixture> > &pre
 	}
 }
 
-void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for each number of games
+void genfixtureset(unsigned int mint, unsigned int maxt, unsigned int simt) {	//this is order O(n^6) for each number of games
 	mint=max(mint,simt*2);				//check that we've got sensible inputs
 	if(maxt<mint) return;
 	if(mint<2) return;
@@ -412,6 +422,12 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 
 		list< vector<fixture> > prevgames;
 		vector<int> matchesleft(n*(n-1)/2,matchrepeatfactor);
+		vector< vector<int> > posarray;
+		if(posbalance) {
+			vector<int> temp;
+			temp.assign(simt,0);
+			posarray.assign(n,temp);
+		}
 
 		printf("%d teams\n", n);
 		if(outhandle) fprintf(outhandle, "%d teams\n", n);
@@ -466,14 +482,36 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 
 			sort(currentgames.begin(), currentgames.end(), fixturesortfunc);
 
+			if(posbalance) {
+				vector<fixture> permcurrentgames=currentgames;
+				unsigned int mincost=UINT_MAX;
+				do {
+					unsigned int curcost=0;
+					for(unsigned int i=0;i<permcurrentgames.size();i++) {
+						curcost+=posarray[permcurrentgames[i].team1][i];
+						curcost+=posarray[permcurrentgames[i].team2][i];
+					}
+					if(curcost<mincost) {
+						currentgames=permcurrentgames;
+						mincost=curcost;
+					}
+				} while(next_permutation(permcurrentgames.begin(), permcurrentgames.end(), fixturesortfunc));
+			}
+
 
 			string nestdump;
 			vector<fixture>::iterator fx=currentgames.begin();
+			unsigned int pos=0;
 			do {
 				printf("%2d v %2d", fx->team1+1, fx->team2+1);
 				if(outhandle) fprintf(outhandle, "%2d v %2d", fx->team1+1, fx->team2+1);
 
 				matchesleft[fx->team2-1-fx->team1+(fx->team1*((2*n)-1-fx->team1)/2)]--;
+				if(posbalance) {
+					posarray[fx->team1][pos]++;
+					posarray[fx->team2][pos]++;
+					pos++;
+				}
 
 				if(debug>=DEBUG_NEST) {
 					checkdumpnesting(nestdump, fx->team1, prevgames, n);
@@ -605,6 +643,17 @@ void genfixtureset(int mint, int maxt, int simt) {	//this is order O(n^6) for ea
 				}
 				printf("\n");
 			}
+		}
+		if(debug>=DEBUG_POSDIST && posbalance) {
+			printf("Position analysis:\n");
+			for(unsigned int i=0; i<n; i++) {
+				printf("%2d:	",i+1);
+				for(unsigned int j=0; j<simt; j++) {
+					printf("%2d ", posarray[i][j]);
+				}
+				printf("\n");
+			}
+			printf("\n");
 		}
 	}
 }
