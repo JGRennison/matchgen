@@ -44,7 +44,7 @@ using namespace std;
 #define DEBUG_POSDIST 1
 
 enum { OPT_MAXTEAMS, OPT_MINTEAMS, OPT_SIMU, OPT_RANDOM, OPT_HELP, OPT_DUPRS, OPT_CREDITS, OPT_DEBUG, OPT_LIMIT,
-OPT_BRUTEON, OPT_BRUTEOFF, OPT_SETTEAMS, OPT_HEADER, OPT_OUTPUT, OPT_POSBALANCE };
+OPT_BRUTEON, OPT_BRUTEOFF, OPT_SETTEAMS, OPT_HEADER, OPT_OUTPUT, OPT_POSBALANCE, OPT_CIRCULAR };
 
 int maxteams=20;
 int minteams=4;
@@ -58,6 +58,7 @@ bool header=false;
 char *outfilename=0;
 FILE *outhandle=0;
 bool posbalance=false;
+bool circular=false;
 
 
 CSimpleOptA::SOption g_rgOptions[] =
@@ -91,6 +92,8 @@ CSimpleOptA::SOption g_rgOptions[] =
 	{ OPT_OUTPUT,		"--output-file",	SO_REQ_SHRT  },
 	{ OPT_POSBALANCE,	"-p",			SO_NONE  },
 	{ OPT_POSBALANCE,	"--position-balance",	SO_NONE  },
+	{ OPT_CIRCULAR,		"-c",			SO_NONE  },
+	{ OPT_CIRCULAR,		"--circular",		SO_NONE  },
 	SO_END_OF_OPTIONS
 };
 
@@ -221,6 +224,9 @@ void cmdline(char *argv[], int argc) {
 			case OPT_POSBALANCE:
 				posbalance=true;
 				break;
+			case OPT_CIRCULAR:
+				circular=true;
+				break;
 			case -1:
 				printf("Not an argument: %s, try --help\n", args.OptionArg());
 				exit(1);
@@ -248,6 +254,12 @@ struct fixture {
 	unsigned int team2;
 };
 
+struct costfuncparams {
+	double targetgap;
+	bool circular;
+	unsigned int circle_length;
+};
+
 
 inline bool costsortfunc(const costst s1, const costst s2) {
 	if(s1.cost<s2.cost) return true;
@@ -266,33 +278,42 @@ inline bool fixturesortfunc(const fixture s1, const fixture s2) {
 	else return false;
 }
 
-inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &prevgames, unsigned int n, double targetgap) {
+inline unsigned int getcost(unsigned int i, unsigned int j, list< vector<fixture> > &prevgames, unsigned int n, const costfuncparams &cfp) {
 	if(i==j) return INT_MAX;
 	unsigned int tcost=0;
 	unsigned int tcost2=0;
 	bool gotprevi=false;
 	bool gotprevj=false;
+	unsigned int lastcircdisti=0;
+	unsigned int lastcircdistj=0;
 	list< vector<fixture> >::reverse_iterator rit;
-	unsigned int iternum=0;
+	unsigned int iternum=1;
 	for( rit=prevgames.rbegin() ; rit != prevgames.rend(); rit++ ) {
 		unsigned int cost=0;
+		unsigned int dist=(cfp.circular)?min(iternum, cfp.circle_length-iternum):iternum;
 		vector<fixture>::iterator fx;
 		for(fx=rit->begin() ; fx != rit->end(); fx++ ) {
 			if(fx->team1==i && fx->team2==j) tcost2+=100000;
 			if(fx->team1==i || fx->team2==i) {
 				cost+=1;
-				if(!gotprevi) tcost2+=max(5000.0-50.0*pow(((iternum+1.0)-targetgap),3),0.0);
+				if(!gotprevi) tcost2+=max(5000.0-50.0*pow((dist-cfp.targetgap),3),0.0);
+				else lastcircdisti=dist;
 				gotprevi=true;
 			}
 			if(fx->team1==j || fx->team2==j) {
 				cost+=1;
-				if(!gotprevj) tcost2+=max(5000.0-50.0*pow(((iternum+1.0)-targetgap),3),0.0);
+				if(!gotprevj) tcost2+=max(5000.0-50.0*pow((dist-cfp.targetgap),3),0.0);
+				else lastcircdistj=dist;
 				gotprevj=true;
 			}
 		}
-		if(cost) tcost+=(((double) cost)*(100.0+(250.0*exp(-sqrt(1.0*iternum)))));
-		if((debug>=DEBUG_TCOSTCOND && cost) || debug>=DEBUG_TCOSTALL ) printf("%d v %d, tcost: %d, tcost2: %d, iternum: %d, cost: %d\n", i+1, j+1, tcost, tcost2, iternum, cost);
+		if(cost) tcost+=(((double) cost)*(100.0+(250.0*exp(-sqrt(dist)))));
+		if((debug>=DEBUG_TCOSTCOND && cost) || debug>=DEBUG_TCOSTALL ) printf("%d v %d, tcost: %d, tcost2: %d, iternum: %d, dist: %d, cost: %d\n", i+1, j+1, tcost, tcost2, iternum, dist, cost);
 		iternum++;
+	}
+	if(cfp.circular && iternum+cfp.targetgap>=cfp.circle_length) {
+		if(lastcircdisti) tcost2+=max(5000.0-50.0*pow((lastcircdisti-cfp.targetgap),3),0.0);
+		if(lastcircdistj) tcost2+=max(5000.0-50.0*pow((lastcircdistj-cfp.targetgap),3),0.0);
 	}
 	return tcost+tcost2;
 }
@@ -416,9 +437,17 @@ void genfixtureset(unsigned int mint, unsigned int maxt, unsigned int simt) {	//
 		}
 		maxgames/=simt;
 
-		maxgames=min(maxgames, limit);
+		costfuncparams cfp;
+		cfp.targetgap=n/(simt*2);
 
-		double targetgap=n/(simt*2);
+		if(limit<maxgames) {
+			maxgames=limit;
+			cfp.circular=false;
+		}
+		else {
+			cfp.circular=circular;
+		}
+		cfp.circle_length=maxgames;
 
 		list< vector<fixture> > prevgames;
 		vector<int> matchesleft(n*(n-1)/2,matchrepeatfactor);
@@ -451,7 +480,7 @@ void genfixtureset(unsigned int mint, unsigned int maxt, unsigned int simt) {	//
 					costs[costnum].team1=i;
 					costs[costnum].team2=j;
 					if(matchesleft[costnum]>0) {
-						costs[costnum].cost=getcost(i,j, prevgames, n, targetgap);	//each cost is of same order to calculate as number of (previous) games, which is O(n^2)
+						costs[costnum].cost=getcost(i,j, prevgames, n, cfp);	//each cost is of same order to calculate as number of (previous) games, which is O(n^2)
 						if(random) costs[costnum].randval=rand();
 						if(debug>=DEBUG_COSTDUMP) printf("Cost of fixture: %d v %d is %d\n", i+1, j+1, costs[costnum].cost);
 					}
