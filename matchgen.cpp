@@ -49,7 +49,7 @@ OPT_BRUTEON, OPT_BRUTEOFF, OPT_SETTEAMS, OPT_HEADER, OPT_OUTPUT, OPT_POSBALANCE,
 int maxteams=20;
 int minteams=4;
 int simu=2;
-bool random=false;
+bool randomflag=false;
 int brute=0;
 int repthreshold=0;
 int debug=0;
@@ -195,7 +195,7 @@ void cmdline(char *argv[], int argc) {
 				debug=atoi(args.OptionArg());
 				break;
 			case OPT_RANDOM:
-				random=true;
+				randomflag=true;
 				break;
 			case OPT_BRUTEON:
 				brute=1;
@@ -264,7 +264,7 @@ struct costfuncparams {
 inline bool costsortfunc(const costst s1, const costst s2) {
 	if(s1.cost<s2.cost) return true;
 	else if(s1.cost>s2.cost) return false;
-	else if(random) return (s1.randval<s2.randval);
+	else if(randomflag) return (s1.randval<s2.randval);
 	else if(s1.team1<s2.team1) return true;
 	else if(s1.team1>s2.team1) return false;
 	else if(s1.team2<s2.team2) return true;
@@ -481,7 +481,7 @@ void genfixtureset(unsigned int mint, unsigned int maxt, unsigned int simt) {	//
 					costs[costnum].team2=j;
 					if(matchesleft[costnum]>0) {
 						costs[costnum].cost=getcost(i,j, prevgames, n, cfp);	//each cost is of same order to calculate as number of (previous) games, which is O(n^2)
-						if(random) costs[costnum].randval=rand();
+						if(randomflag) costs[costnum].randval=rand();
 						if(debug>=DEBUG_COSTDUMP) printf("Cost of fixture: %d v %d is %d\n", i+1, j+1, costs[costnum].cost);
 					}
 					else costs[costnum].cost=UINT_MAX;
@@ -689,7 +689,7 @@ void genfixtureset(unsigned int mint, unsigned int maxt, unsigned int simt) {	//
 
 int main( int argc, char *argv[]) {
 	cmdline(argv, argc);
-	if(random) srand (time(NULL));
+	if(randomflag) srand (time(NULL));
 	if(header) {
 		printf("%s\nCommand line: ", version);
 		if(outhandle) fprintf(outhandle, "%s\nCommand line: ", version);
