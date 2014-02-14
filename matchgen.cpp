@@ -1,5 +1,7 @@
 //  Match Fixture List Generator
 //
+//  WEBSITE: https://github.com/JGRennison/matchgen
+//  WEBSITE: https://bitbucket.org/JGRennison/matchgen
 //  WEBSITE: http://matchgen.sourceforge.net
 //
 //  NOTE: This software is licensed under the GPL. See: COPYING-GPL.txt
